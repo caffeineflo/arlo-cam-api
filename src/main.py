@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import structlog
 import uvicorn
@@ -16,20 +17,32 @@ from src.protocol.server import start_tcp_server
 from src.state.database import Database
 from src.webhooks.manager import WebhookManager
 
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.add_log_level,
-        structlog.dev.ConsoleRenderer(),
-    ],
-    wrapper_class=structlog.make_filtering_bound_logger(0),
-)
+LOG_LEVEL_MAP = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+}
+
+
+def configure_logging(level: str) -> None:
+    numeric = LOG_LEVEL_MAP.get(level.upper(), logging.INFO)
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.add_log_level,
+            structlog.dev.ConsoleRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(numeric),
+    )
+
 
 logger = structlog.get_logger()
 
 
 async def main() -> None:
     settings = load_settings("/app/config.yaml")
+    configure_logging(settings.log_level)
     logger.info("config_loaded", quality=settings.video_quality_default, country=settings.wifi_country_code)
 
     db = Database(settings.database_path)
