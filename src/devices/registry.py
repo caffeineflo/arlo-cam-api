@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import structlog
+
 from src.devices.base import Device
+from src.devices.factory import create_device
+
+logger = structlog.get_logger()
 
 
 class DeviceRegistry:
@@ -32,3 +37,21 @@ class DeviceRegistry:
 
     def __len__(self) -> int:
         return len(self._devices)
+
+    async def restore_from_db(self, db) -> None:
+        """Restore devices into registry from database on startup."""
+        rows = await db.get_all_devices()
+        for row in rows:
+            serial = row.get("serial_number", "")
+            if not serial or serial in self._devices:
+                continue
+            ip = row.get("ip", "")
+            hostname = row.get("hostname", serial)
+            registration = row.get("registration") or {}
+            model = registration.get("SystemModelNumber", "")
+            friendly_name = row.get("friendly_name", serial)
+            device = create_device(serial, ip, hostname, model, registration)
+            device.friendly_name = friendly_name
+            self._devices[serial] = device
+        if rows:
+            logger.info("registry_restored", count=len(rows))

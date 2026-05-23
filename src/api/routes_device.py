@@ -105,6 +105,20 @@ async def user_stream_active(serial: str, request: Request):
     return {"result": False}
 
 
+@router.post("/device/{serial}/streamrefresh")
+async def refresh_stream(serial: str, request: Request):
+    """Called by stream consumers to keep the stream alive (resets watchdog timer)."""
+    registry = _get_registry(request)
+    device = registry.get(serial)
+    if not device:
+        raise HTTPException(404, "Device not found")
+    from src.devices.camera import Camera
+    if isinstance(device, Camera):
+        device.refresh_stream()
+        return {"result": True, "streaming": device.is_streaming}
+    return {"result": False}
+
+
 @router.post("/device/{serial}/arm")
 async def arm_device(serial: str, request: Request):
     body = await request.json()

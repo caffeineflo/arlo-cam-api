@@ -130,6 +130,7 @@ def build_snapshot_message(msg_id: int, url: str) -> dict:
 
 
 def build_user_stream_active_message(msg_id: int, active: bool) -> dict:
+    # Protocol inversion: UserStreamActive=0 means streaming, =1 means disabled
     return {"Type": "registerSet", "ID": msg_id, "SetValues": {"UserStreamActive": 0 if active else 1}}
 
 

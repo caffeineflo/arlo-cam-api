@@ -36,6 +36,7 @@ async def main() -> None:
     await db.connect()
 
     registry = DeviceRegistry()
+    await registry.restore_from_db(db)
     webhooks = WebhookManager(settings)
     handler = ConnectionHandler(registry, db, settings, webhooks)
 
