@@ -1,0 +1,79 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    model_config = {"extra": "ignore"}
+
+    wifi_country_code: str = "US"
+    video_anti_flicker_rate: int = 60
+    video_quality_default: str = "insane"
+
+    notify_on_motion_alert: bool = True
+    notify_on_motion_timeout_alert: bool = False
+    notify_on_audio_alert: bool = False
+    notify_on_button_press_alert: bool = True
+    notify_registered_and_status_update: bool = True
+
+    motion_recording_webhook_url: str = ""
+    status_update_webhook_url: str = ""
+    registration_webhook_url: str = ""
+    button_press_webhook_url: str = ""
+    motion_timeout_webhook_url: str = ""
+    audio_recording_webhook_url: str = ""
+
+    database_path: str = "/data/arlo.db"
+    snapshot_cache_ttl: int = 300
+    device_offline_threshold: int = 300
+    webhook_retries: int = 3
+    webhook_timeout: int = 5
+    log_level: str = "INFO"
+
+    camera_port: int = Field(default=4000)
+    doorbell_port: int = Field(default=4100)
+    api_port: int = Field(default=5000)
+
+
+_YAML_KEY_MAP = {
+    "WifiCountryCode": "wifi_country_code",
+    "VideoAntiFlickerRate": "video_anti_flicker_rate",
+    "VideoQualityDefault": "video_quality_default",
+    "NotifyOnMotionAlert": "notify_on_motion_alert",
+    "NotifyOnMotionTimeoutAlert": "notify_on_motion_timeout_alert",
+    "NotifyOnAudioAlert": "notify_on_audio_alert",
+    "NotifyOnButtonPressAlert": "notify_on_button_press_alert",
+    "NotifyRegisteredAndStatusUpdate": "notify_registered_and_status_update",
+    "MotionRecordingWebHookUrl": "motion_recording_webhook_url",
+    "StatusUpdateWebHookUrl": "status_update_webhook_url",
+    "RegistrationWebHookUrl": "registration_webhook_url",
+    "ButtonPressWebHookUrl": "button_press_webhook_url",
+    "MotionTimeoutWebHookUrl": "motion_timeout_webhook_url",
+    "AudioRecordingWebHookUrl": "audio_recording_webhook_url",
+    "DatabasePath": "database_path",
+    "SnapshotCacheTTL": "snapshot_cache_ttl",
+    "DeviceOfflineThreshold": "device_offline_threshold",
+    "WebhookRetries": "webhook_retries",
+    "WebhookTimeout": "webhook_timeout",
+    "LogLevel": "log_level",
+}
+
+
+def load_settings(config_path: str = "config.yaml") -> Settings:
+    path = Path(config_path)
+    if not path.exists():
+        return Settings()
+
+    with open(path) as f:
+        raw = yaml.safe_load(f) or {}
+
+    mapped = {}
+    for yaml_key, value in raw.items():
+        settings_key = _YAML_KEY_MAP.get(yaml_key, yaml_key)
+        mapped[settings_key] = value
+
+    return Settings(**mapped)
