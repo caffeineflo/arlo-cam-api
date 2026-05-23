@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 
 import structlog
@@ -10,6 +11,7 @@ import structlog
 from src.config import Settings
 from src.devices.base import Device
 from src.devices.camera import Camera
+from src.devices.capabilities import filter_register_set
 from src.devices.factory import create_device
 from src.devices.registry import DeviceRegistry
 from src.messages.templates import (
@@ -99,8 +101,23 @@ class ConnectionHandler:
 
         if isinstance(device, Camera):
             config = self._build_initial_config()
-            await device.send_initial_config(config)
+            desired = await self.db.get_desired_state(serial)
+            if desired:
+                stored_values = json.loads(desired.get("register_set_values", "{}"))
+                if stored_values:
+                    config.update(stored_values)
+                    log.info("desired_state_applied", keys=list(stored_values.keys()))
+
+            filtered = filter_register_set(config, model, message)
+            removed = set(config.keys()) - set(filtered.keys())
+            if removed:
+                log.info("capability_filtered", removed=list(removed))
+
+            await device.send_initial_config(filtered)
             await device.send_epoch_time()
+
+            if desired and desired.get("quality_preset"):
+                await device.send_ra_params(desired["quality_preset"])
 
         await self.webhooks.fire_registration(device, message)
 
