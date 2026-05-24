@@ -22,7 +22,7 @@ services:
     volumes:
       - data:/data:ro
       - ./stream_helper.sh:/app/stream_helper.sh:ro
-    command: ["-config", "/data/go2rtc.yaml"]
+    command: ["go2rtc", "-config", "/data/go2rtc.yaml"]
     restart: unless-stopped
 
 volumes:
