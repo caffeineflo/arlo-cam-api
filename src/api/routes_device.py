@@ -130,9 +130,8 @@ async def arm_device(serial: str, request: Request):
     from src.devices.camera import Camera
     if isinstance(device, Camera):
         filtered = filter_register_set(body, device.model, device.registration)
+        await _merge_desired_state(db, serial, filtered)
         result = await device.arm(filtered)
-        if result:
-            await _merge_desired_state(db, serial, filtered)
         return {"result": result}
     return {"result": False}
 
@@ -151,9 +150,8 @@ async def set_quality(serial: str, request: Request):
         from src.messages.quality_presets import QUALITY_REGISTER_SETS
         register_values = QUALITY_REGISTER_SETS.get(quality, {})
         filtered = filter_register_set(register_values, device.model, device.registration)
+        await _merge_desired_state(db, serial, filtered, quality_preset=quality)
         result = await device.set_quality(quality)
-        if result:
-            await _merge_desired_state(db, serial, filtered, quality_preset=quality)
         return {"result": result}
     return {"result": False}
 
@@ -202,8 +200,7 @@ async def send_register_set(serial: str, request: Request):
     from src.devices.camera import Camera
     if isinstance(device, Camera):
         filtered = filter_register_set(body, device.model, device.registration)
+        await _merge_desired_state(db, serial, filtered)
         result = await device.send_register_set(filtered)
-        if result:
-            await _merge_desired_state(db, serial, filtered)
         return {"result": result}
     return {"result": False}
