@@ -33,6 +33,7 @@ class ConnectionHandler:
         self.db = db
         self.settings = settings
         self.webhooks = webhooks
+        self.go2rtc_manager = None
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         peer = writer.get_extra_info("peername")
@@ -118,6 +119,9 @@ class ConnectionHandler:
 
             if desired and desired.get("quality_preset"):
                 await device.send_ra_params(desired["quality_preset"])
+
+        if self.go2rtc_manager and isinstance(device, Camera):
+            await self.go2rtc_manager.add_stream(device)
 
         await self.webhooks.fire_registration(device, message)
 

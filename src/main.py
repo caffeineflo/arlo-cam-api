@@ -53,11 +53,20 @@ async def main() -> None:
     webhooks = WebhookManager(settings)
     handler = ConnectionHandler(registry, db, settings, webhooks)
 
+    go2rtc_mgr = None
+    if settings.go2rtc_enabled:
+        from src.go2rtc.manager import Go2RTCManager
+        go2rtc_mgr = Go2RTCManager(registry, settings)
+        await go2rtc_mgr.generate_config()
+
+    handler.go2rtc_manager = go2rtc_mgr
+
     app = create_app()
     app.state.registry = registry
     app.state.db = db
     app.state.settings = settings
     app.state.snapshot_cache = SnapshotCache(ttl=settings.snapshot_cache_ttl)
+    app.state.go2rtc = go2rtc_mgr
 
     camera_server = await start_tcp_server(handler, settings.camera_port, "camera")
     doorbell_server = await start_tcp_server(handler, settings.doorbell_port, "doorbell")

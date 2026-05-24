@@ -67,6 +67,7 @@ async def app(settings, db, registry, sample_camera):
     application.state.db = db
     application.state.settings = settings
     application.state.snapshot_cache = SnapshotCache(ttl=300)
+    application.state.go2rtc = None
     registry.register(sample_camera)
     return application
 

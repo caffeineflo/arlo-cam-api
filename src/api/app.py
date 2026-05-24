@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from src.api.routes_admin import router as admin_router
 from src.api.routes_device import router as device_router
 from src.api.routes_snapshot import router as snapshot_router
+from src.api.routes_streams import router as streams_router
 
 
 def create_app() -> FastAPI:
@@ -17,6 +18,7 @@ def create_app() -> FastAPI:
     app.include_router(device_router)
     app.include_router(snapshot_router)
     app.include_router(admin_router)
+    app.include_router(streams_router)
 
     @app.get("/")
     async def ping():

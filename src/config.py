@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     doorbell_port: int = Field(default=4100)
     api_port: int = Field(default=5000)
 
+    go2rtc_enabled: bool = True
+    go2rtc_config_path: str = "/data/go2rtc.yaml"
+    go2rtc_rtsp_port: int = 8554
+    go2rtc_api_port: int = 1984
+    go2rtc_start_timeout: int = 90
+
 
 _YAML_KEY_MAP = {
     "WifiCountryCode": "wifi_country_code",
@@ -60,6 +66,11 @@ _YAML_KEY_MAP = {
     "WebhookRetries": "webhook_retries",
     "WebhookTimeout": "webhook_timeout",
     "LogLevel": "log_level",
+    "Go2RTCEnabled": "go2rtc_enabled",
+    "Go2RTCConfigPath": "go2rtc_config_path",
+    "Go2RTCRTSPPort": "go2rtc_rtsp_port",
+    "Go2RTCAPIPort": "go2rtc_api_port",
+    "Go2RTCStartTimeout": "go2rtc_start_timeout",
 }
 
 

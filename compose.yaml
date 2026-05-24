@@ -1,0 +1,34 @@
+services:
+  arlo-cam-api:
+    image: ghcr.io/caffeineflo/arlo-cam-api:latest
+    container_name: arlo-cam-api
+    ports:
+      - "4000:4000"
+      - "4100:4100"
+      - "5000:5000"
+      - "8554:8554"
+      - "1984:1984"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - data:/data
+    restart: unless-stopped
+
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: arlo-go2rtc
+    network_mode: "service:arlo-cam-api"
+    depends_on:
+      - arlo-cam-api
+    volumes:
+      - data:/data:ro
+      - ./stream_helper.sh:/app/stream_helper.sh:ro
+    command: ["-config", "/data/go2rtc.yaml"]
+    restart: unless-stopped
+
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /dockerfs/arlocam/v2-data
