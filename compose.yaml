@@ -5,12 +5,29 @@ services:
     ports:
       - "4000:4000"
       - "4100:4100"
-      - "5000:5000"
       - "8554:8554"
-      - "1984:1984"
+    networks:
+      - web
+      - default
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.arlocam.rule=Host(`arlocam.iflorian.com`)"
+      - "traefik.http.routers.arlocam.entrypoints=https"
+      - "traefik.http.routers.arlocam.tls=true"
+      - "traefik.http.routers.arlocam.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.arlocam.middlewares=chain-local-only@file"
+      - "traefik.http.routers.arlocam.service=arlocam"
+      - "traefik.http.services.arlocam.loadbalancer.server.port=5000"
+      - "traefik.http.routers.arlocam-go2rtc.rule=Host(`arlocam-go2rtc.iflorian.com`)"
+      - "traefik.http.routers.arlocam-go2rtc.entrypoints=https"
+      - "traefik.http.routers.arlocam-go2rtc.tls=true"
+      - "traefik.http.routers.arlocam-go2rtc.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.arlocam-go2rtc.middlewares=chain-local-only@file"
+      - "traefik.http.routers.arlocam-go2rtc.service=arlocam-go2rtc"
+      - "traefik.http.services.arlocam-go2rtc.loadbalancer.server.port=1984"
     restart: unless-stopped
 
   go2rtc:
@@ -24,6 +41,10 @@ services:
       - ./stream_helper.sh:/app/stream_helper.sh:ro
     command: ["go2rtc", "-config", "/data/go2rtc.yaml"]
     restart: unless-stopped
+
+networks:
+  web:
+    external: true
 
 volumes:
   data:
