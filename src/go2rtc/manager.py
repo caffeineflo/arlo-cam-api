@@ -83,7 +83,7 @@ class Go2RTCManager:
         except httpx.HTTPError:
             return False
 
-    async def get_streams(self) -> dict:
+    async def get_streams(self, host: str = "localhost") -> dict:
         from src.devices.camera import Camera
 
         streams = {}
@@ -94,7 +94,7 @@ class Go2RTCManager:
             streams[name] = {
                 "serial": device.serial_number,
                 "ip": device.ip,
-                "rtsp_url": f"rtsp://192.168.40.11:{self._settings.go2rtc_rtsp_port}/{name}",
+                "rtsp_url": f"rtsp://{host}:{self._settings.go2rtc_rtsp_port}/{name}",
             }
         return streams
 

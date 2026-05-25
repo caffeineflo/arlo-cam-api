@@ -12,7 +12,8 @@ async def list_streams(request: Request):
     go2rtc = request.app.state.go2rtc
     if not go2rtc:
         return {"streams": {}}
-    return {"streams": await go2rtc.get_streams()}
+    host = request.headers.get("host", "localhost").split(":")[0]
+    return {"streams": await go2rtc.get_streams(host)}
 
 
 @router.post("/streams/reload")
