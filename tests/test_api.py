@@ -7,9 +7,16 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_ping(client):
-    resp = await client.get("/")
+    resp = await client.get("/ping")
     assert resp.status_code == 200
     assert resp.json() == "PING"
+
+
+@pytest.mark.asyncio
+async def test_landing_page(client):
+    resp = await client.get("/")
+    assert resp.status_code == 200
+    assert "arlo-cam-api" in resp.text
 
 
 @pytest.mark.asyncio
