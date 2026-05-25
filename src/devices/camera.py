@@ -19,6 +19,9 @@ from src.messages.templates import (
 STREAM_WATCHDOG_TIMEOUT = 45.0
 
 
+ALWAYS_ON_STREAM_LIMIT = 86400
+
+
 class Camera(Device):
     port = 4000
 
@@ -27,6 +30,8 @@ class Camera(Device):
         self._stream_active: bool = False
         self._stream_started_at: float = 0
         self._stream_watchdog: asyncio.Task | None = None
+        self._pending_stream_active: bool | None = None
+        self.always_on: bool = False
 
     @property
     def is_streaming(self) -> bool:
@@ -70,13 +75,24 @@ class Camera(Device):
         msg = build_user_stream_active_message(self.next_id, active)
         result = await self.send_message(msg)
         if result is not None:
+            self._pending_stream_active = None
             self._stream_active = active
             if active:
                 self._stream_started_at = time.time()
-                self._reset_stream_watchdog()
+                if not self.always_on:
+                    self._reset_stream_watchdog()
             else:
                 self._cancel_stream_watchdog()
+        else:
+            self._pending_stream_active = active
         return result is not None
+
+    async def deliver_pending_stream(self) -> bool | None:
+        if self._pending_stream_active is None:
+            return None
+        active = self._pending_stream_active
+        result = await self.set_user_stream_active(active)
+        return result
 
     def refresh_stream(self) -> None:
         """Called by the stream consumer to signal it's still watching."""

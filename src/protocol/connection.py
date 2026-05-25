@@ -109,6 +109,10 @@ class ConnectionHandler:
                     config.update(stored_values)
                     log.info("desired_state_applied", keys=list(stored_values.keys()))
 
+            from src.devices.camera import ALWAYS_ON_STREAM_LIMIT
+            if config.get("MaxUserStreamTimeLimit", 0) >= ALWAYS_ON_STREAM_LIMIT:
+                device.always_on = True
+
             filtered = filter_register_set(config, model, message)
             removed = set(config.keys()) - set(filtered.keys())
             if removed:
@@ -119,6 +123,10 @@ class ConnectionHandler:
 
             if desired and desired.get("quality_preset"):
                 await device.send_ra_params(desired["quality_preset"])
+
+            if device.always_on:
+                await device.set_user_stream_active(True)
+                log.info("always_on_stream_activated", serial=serial)
 
         if self.go2rtc_manager and isinstance(device, Camera):
             await self.go2rtc_manager.add_stream(device)
@@ -136,6 +144,8 @@ class ConnectionHandler:
         if device:
             device.update_ip(ip)
             device.update_status(message)
+            if isinstance(device, Camera):
+                await device.deliver_pending_stream()
         await self.db.update_status(serial, message)
         await self.webhooks.fire_status(device, message)
 
@@ -147,6 +157,8 @@ class ConnectionHandler:
 
         if device:
             device.touch()
+            if isinstance(device, Camera):
+                await device.deliver_pending_stream()
 
         if alert_type == "pirMotionAlert":
             zones = message.get("PIRMotion", {}).get("zones", [])
