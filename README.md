@@ -26,27 +26,22 @@ Forked from [brianschrameck/arlo-cam-api](https://github.com/brianschrameck/arlo
 ## Quick Start
 
 ```bash
+git clone https://github.com/caffeineflo/arlo-cam-api.git
+cd arlo-cam-api
+# Edit config.yaml with your settings
+docker compose up -d
+```
+
+This starts both arlo-cam-api and go2rtc. Streams become available at `rtsp://<host>:8554/<camera_name>` once cameras register.
+
+For arlo-cam-api only (without go2rtc):
+
+```bash
 docker run -d \
   -p 4000:4000 -p 4100:4100 -p 5000:5000 \
   -v ./config.yaml:/app/config.yaml \
   -v ./data:/data \
-  caffeineflo/arlo-cam-api:latest
-```
-
-Or with compose:
-
-```yaml
-services:
-  arlo-cam-api:
-    image: caffeineflo/arlo-cam-api:latest
-    ports:
-      - "4000:4000"   # Camera TCP
-      - "4100:4100"   # Doorbell TCP
-      - "5000:5000"   # REST API
-    volumes:
-      - ./config.yaml:/app/config.yaml
-      - ./data:/data
-    restart: unless-stopped
+  ghcr.io/caffeineflo/arlo-cam-api:latest
 ```
 
 ## Network Setup
@@ -148,7 +143,107 @@ All settings can also be set via environment variables (snake_case, e.g. `VIDEO_
 | GET | `/health` | Service health + uptime |
 | GET | `/devices/status` | All devices with online/offline state |
 
-### Streaming
+### Streams
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/streams` | List all streams with RTSP URLs |
+| POST | `/streams/reload` | Regenerate go2rtc config and reload |
+
+## go2rtc Integration
+
+The recommended deployment uses go2rtc as a sidecar container that provides stable RTSP URLs for consumers (Home Assistant, Frigate, etc.). Consumers connect to go2rtc, which handles camera wake-up, stream activation, and keepalives automatically.
+
+### Deployment
+
+Use the included `compose.yaml`:
+
+```bash
+docker compose up -d
+```
+
+This starts:
+- **arlo-cam-api** on ports 4000 (camera TCP), 4100 (doorbell TCP), 5000 (REST API)
+- **go2rtc** on ports 8554 (RTSP output), 1984 (web UI/API)
+
+Both containers share a network namespace so they communicate via localhost.
+
+### Consuming Streams
+
+Once deployed, streams are available at:
+
+```
+rtsp://<host>:8554/<stream_name>
+```
+
+Discover available streams:
+
+```bash
+curl http://<host>:5000/streams
+```
+
+The go2rtc web UI at `http://<host>:1984` lets you view streams in-browser via WebRTC.
+
+### How It Works
+
+When a consumer connects to an RTSP stream:
+
+1. go2rtc runs `stream_helper.sh` which pings the camera (triggering AP power-save wake via 802.11 TIM)
+2. Sends the stream activation command to the camera
+3. Waits up to 80 seconds for the camera's RTSP server to come online
+4. Relays the camera's RTSP feed to the consumer via go2rtc
+
+Cameras sleep between viewer sessions to conserve battery. Typical wake time is 5-15 seconds for USB-powered cameras with `MaxMissedBeaconTime: 10`.
+
+### Always-On Streaming (USB-Powered Cameras)
+
+For cameras with external power, you can enable continuous streaming - no wake latency, always ready:
+
+```bash
+curl -X POST http://<host>:5000/device/SERIAL/registerset \
+  -H "Content-Type: application/json" \
+  -d '{"MaxUserStreamTimeLimit": 86400, "MaxStreamTimeLimit": 86400}'
+```
+
+When these values are set, the system:
+- Auto-activates streaming every time the camera registers (boots/reconnects)
+- Disables the idle watchdog (stream won't auto-stop without a viewer)
+- Camera stays live 24/7
+
+To revert to on-demand mode:
+
+```bash
+curl -X POST http://<host>:5000/device/SERIAL/registerset \
+  -H "Content-Type: application/json" \
+  -d '{"MaxUserStreamTimeLimit": 1800, "MaxStreamTimeLimit": 1800}'
+```
+
+## Home Assistant Integration
+
+Add the RTSP streams to HA's go2rtc configuration:
+
+```yaml
+# /config/go2rtc.yaml (or via go2rtc addon config)
+streams:
+  front_entrance:
+    - rtsp://192.168.40.11:8554/front_entrance
+  front_right:
+    - rtsp://192.168.40.11:8554/front_right
+  garden_left:
+    - rtsp://192.168.40.11:8554/garden_left
+```
+
+HA's built-in go2rtc handles buffering and serves WebRTC/HLS to dashboards. The go2rtc integration auto-creates camera entities from these streams.
+
+**Important notes for HA:**
+- Consumer-side RTSP transport must be TCP (go2rtc handles this automatically)
+- On-demand cameras take 5-60s to start on first viewer connect
+- Always-on cameras are instant
+- The source go2rtc web UI at `http://<host>:1984` can be used to verify streams
+
+### Streaming (Low-Level API)
+
+For direct stream control without go2rtc:
 
 ```bash
 # Start stream
