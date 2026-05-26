@@ -76,6 +76,24 @@ async def main() -> None:
 
     logger.info("server_starting", camera_port=settings.camera_port, doorbell_port=settings.doorbell_port, api_port=settings.api_port)
 
+    async def activate_always_on_cameras():
+        await asyncio.sleep(5)
+        from src.devices.camera import Camera, ALWAYS_ON_STREAM_LIMIT
+        import json
+        for device in registry.get_all():
+            if not isinstance(device, Camera):
+                continue
+            desired = await db.get_desired_state(device.serial_number)
+            if not desired:
+                continue
+            stored = json.loads(desired.get("register_set_values", "{}"))
+            if stored.get("MaxUserStreamTimeLimit", 0) >= ALWAYS_ON_STREAM_LIMIT:
+                device.always_on = True
+                await device.set_user_stream_active(True)
+                logger.info("always_on_startup_activate", serial=device.serial_number)
+
+    asyncio.create_task(activate_always_on_cameras())
+
     try:
         await server.serve()
     finally:
