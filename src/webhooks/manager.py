@@ -6,9 +6,11 @@ import time
 
 import httpx
 import structlog
+from opentelemetry import trace
 
 from src.config import Settings
 from src.devices.base import Device
+from src.telemetry import tracer
 
 logger = structlog.get_logger()
 
@@ -75,14 +77,21 @@ class WebhookManager:
         await self._post(url, payload, "audio")
 
     async def _post(self, url: str, payload: dict, event_type: str) -> None:
-        for attempt in range(self.settings.webhook_retries):
-            try:
-                resp = await self._client.post(url, json=payload)
-                if resp.status_code < 400:
-                    return
-                logger.warning("webhook_http_error", url=url, event=event_type, status=resp.status_code)
-            except httpx.RequestError as e:
-                logger.warning("webhook_request_error", url=url, event=event_type, attempt=attempt + 1, error=str(e))
+        with tracer.start_as_current_span(
+            "webhook.dispatch",
+            attributes={"webhook.event_type": event_type, "webhook.url": url},
+        ) as span:
+            for attempt in range(self.settings.webhook_retries):
+                try:
+                    resp = await self._client.post(url, json=payload)
+                    if resp.status_code < 400:
+                        span.set_attribute("webhook.attempts", attempt + 1)
+                        return
+                    logger.warning("webhook_http_error", url=url, event=event_type, status=resp.status_code)
+                except httpx.RequestError as e:
+                    logger.warning("webhook_request_error", url=url, event=event_type, attempt=attempt + 1, error=str(e))
+            span.set_attribute("webhook.attempts", self.settings.webhook_retries)
+            span.set_status(trace.StatusCode.ERROR, f"all {self.settings.webhook_retries} attempts failed")
 
     @staticmethod
     def _base_payload(device: Device | None) -> dict:

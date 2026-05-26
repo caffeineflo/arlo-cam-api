@@ -9,6 +9,7 @@ import time
 import structlog
 
 from src.protocol.codec import read_message, write_message
+from src.telemetry import tracer
 
 logger = structlog.get_logger()
 
@@ -35,29 +36,33 @@ class Device:
     async def send_message(self, message: dict, port: int | None = None) -> dict | None:
         target_port = port or self.port
         log = logger.bind(device=self.serial_number, ip=self.ip, port=target_port)
-        try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(self.ip, target_port),
-                timeout=5.0,
-            )
-        except (OSError, asyncio.TimeoutError) as e:
-            log.warning("connection_failed", error=str(e))
-            return None
-
-        try:
-            await write_message(writer, message)
-            response = await asyncio.wait_for(read_message(reader), timeout=5.0)
-            log.debug("message_sent", msg_type=message.get("Type"), response_type=response.get("Type") if response else None)
-            return response
-        except (OSError, asyncio.TimeoutError, json.JSONDecodeError) as e:
-            log.warning("send_failed", error=str(e))
-            return None
-        finally:
-            writer.close()
+        with tracer.start_as_current_span(
+            "device.send_message",
+            attributes={"device.serial": self.serial_number, "message.type": message.get("Type", "")},
+        ):
             try:
-                await writer.wait_closed()
-            except OSError:
-                pass
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection(self.ip, target_port),
+                    timeout=5.0,
+                )
+            except (OSError, asyncio.TimeoutError) as e:
+                log.warning("connection_failed", error=str(e))
+                return None
+
+            try:
+                await write_message(writer, message)
+                response = await asyncio.wait_for(read_message(reader), timeout=5.0)
+                log.debug("message_sent", msg_type=message.get("Type"), response_type=response.get("Type") if response else None)
+                return response
+            except (OSError, asyncio.TimeoutError, json.JSONDecodeError) as e:
+                log.warning("send_failed", error=str(e))
+                return None
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except OSError:
+                    pass
 
     def update_ip(self, ip: str) -> None:
         self.ip = ip

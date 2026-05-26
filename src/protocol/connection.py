@@ -7,6 +7,7 @@ import json
 import time
 
 import structlog
+from opentelemetry import trace
 
 from src.config import Settings
 from src.devices.base import Device
@@ -22,6 +23,7 @@ from src.messages.templates import (
 )
 from src.protocol.codec import read_message, write_message
 from src.state.database import Database
+from src.telemetry import span, tracer
 from src.webhooks.manager import WebhookManager
 
 logger = structlog.get_logger()
@@ -40,36 +42,39 @@ class ConnectionHandler:
         ip = peer[0] if peer else "unknown"
         log = logger.bind(peer_ip=ip)
 
-        try:
-            message = await asyncio.wait_for(read_message(reader), timeout=10.0)
-            if not message:
-                return
-
-            msg_type = message.get("Type", "")
-            msg_id = message.get("ID", 0)
-
-            ack = build_ack_message(msg_id)
-            await write_message(writer, ack)
-
-            if msg_type == "registration":
-                await self._handle_registration(ip, message, log)
-            elif msg_type == "status":
-                await self._handle_status(ip, message, log)
-            elif msg_type == "alert":
-                await self._handle_alert(ip, message, log)
-            else:
-                log.debug("unknown_message_type", msg_type=msg_type)
-
-        except asyncio.TimeoutError:
-            log.debug("connection_timeout")
-        except Exception as e:
-            log.error("connection_error", error=str(e))
-        finally:
-            writer.close()
+        with tracer.start_as_current_span("tcp.handle_connection", attributes={"net.peer.ip": ip}) as span:
             try:
-                await writer.wait_closed()
-            except OSError:
-                pass
+                message = await asyncio.wait_for(read_message(reader), timeout=10.0)
+                if not message:
+                    return
+
+                msg_type = message.get("Type", "")
+                msg_id = message.get("ID", 0)
+                span.set_attribute("message.type", msg_type)
+
+                ack = build_ack_message(msg_id)
+                await write_message(writer, ack)
+
+                if msg_type == "registration":
+                    await self._handle_registration(ip, message, log)
+                elif msg_type == "status":
+                    await self._handle_status(ip, message, log)
+                elif msg_type == "alert":
+                    await self._handle_alert(ip, message, log)
+                else:
+                    log.debug("unknown_message_type", msg_type=msg_type)
+
+            except asyncio.TimeoutError:
+                log.debug("connection_timeout")
+            except Exception as e:
+                span.set_status(trace.StatusCode.ERROR, str(e))
+                log.error("connection_error", error=str(e))
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except OSError:
+                    pass
 
     async def _handle_registration(self, ip: str, message: dict, log: structlog.BoundLogger) -> None:
         serial = message.get("SystemSerialNumber", "")

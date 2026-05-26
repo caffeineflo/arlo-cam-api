@@ -25,12 +25,23 @@ LOG_LEVEL_MAP = {
 }
 
 
+def _otel_trace_injector(logger, method_name, event_dict):
+    from opentelemetry import trace as otel_trace
+    span = otel_trace.get_current_span()
+    ctx = span.get_span_context()
+    if ctx and ctx.trace_id:
+        event_dict["trace_id"] = format(ctx.trace_id, "032x")
+        event_dict["span_id"] = format(ctx.span_id, "016x")
+    return event_dict
+
+
 def configure_logging(level: str) -> None:
     numeric = LOG_LEVEL_MAP.get(level.upper(), logging.INFO)
     structlog.configure(
         processors=[
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.add_log_level,
+            _otel_trace_injector,
             structlog.dev.ConsoleRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(numeric),

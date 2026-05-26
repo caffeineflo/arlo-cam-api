@@ -9,6 +9,7 @@ import httpx
 import structlog
 
 from src.devices.registry import DeviceRegistry
+from src.telemetry import tracer
 
 logger = structlog.get_logger()
 
@@ -57,19 +58,23 @@ class Go2RTCManager:
 
         name = self._stream_name(device)
         src = self._exec_line(device)
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.put(
-                    f"{self._api_base}/api/streams",
-                    params={"name": name, "src": src},
-                    timeout=5,
-                )
-                if resp.status_code == 200:
-                    logger.info("go2rtc_stream_added", name=name, serial=device.serial_number)
-                    return True
-        except httpx.HTTPError as e:
-            logger.warning("go2rtc_add_stream_failed", name=name, error=str(e))
-        return False
+        with tracer.start_as_current_span(
+            "go2rtc.add_stream",
+            attributes={"stream.name": name, "device.serial": device.serial_number},
+        ):
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.put(
+                        f"{self._api_base}/api/streams",
+                        params={"name": name, "src": src},
+                        timeout=5,
+                    )
+                    if resp.status_code == 200:
+                        logger.info("go2rtc_stream_added", name=name, serial=device.serial_number)
+                        return True
+            except httpx.HTTPError as e:
+                logger.warning("go2rtc_add_stream_failed", name=name, error=str(e))
+            return False
 
     async def remove_stream(self, name: str) -> bool:
         try:
