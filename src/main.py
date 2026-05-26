@@ -94,9 +94,20 @@ async def main() -> None:
 
     asyncio.create_task(activate_always_on_cameras())
 
+    async def deactivate_all_streams():
+        from src.devices.camera import Camera
+        tasks = []
+        for device in registry.get_all():
+            if isinstance(device, Camera) and device.is_streaming:
+                tasks.append(device.set_user_stream_active(False))
+                logger.info("shutdown_stream_deactivate", serial=device.serial_number)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
     try:
         await server.serve()
     finally:
+        await deactivate_all_streams()
         camera_server.close()
         doorbell_server.close()
         await webhooks.close()
