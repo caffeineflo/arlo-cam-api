@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import json
-import tempfile
 
 import pytest
-import pytest_asyncio
 
-from src.config import Settings
+from src.config import Settings, load_settings
 from src.devices.camera import Camera
 from src.devices.registry import DeviceRegistry
 from src.go2rtc.manager import Go2RTCManager
@@ -101,3 +99,25 @@ async def test_get_streams(registry_with_cameras, settings):
     assert streams["front_porch"]["serial"] == "4N72777560C4E"
     assert streams["front_porch"]["ip"] == "192.168.4.216"
     assert "8554" in streams["front_porch"]["rtsp_url"]
+
+
+def test_go2rtc_api_base_defaults_to_localhost(registry_with_cameras, settings):
+    mgr = Go2RTCManager(registry_with_cameras, settings)
+
+    assert mgr._api_base == "http://127.0.0.1:1984"
+
+
+def test_go2rtc_api_base_uses_configured_url(registry_with_cameras, settings):
+    settings.go2rtc_api_url = "http://arlo-go2rtc:1984/"
+    mgr = Go2RTCManager(registry_with_cameras, settings)
+
+    assert mgr._api_base == "http://arlo-go2rtc:1984"
+
+
+def test_load_settings_maps_go2rtc_api_url(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text('Go2RTCApiUrl: "http://arlo-go2rtc:1984"\n')
+
+    settings = load_settings(str(config_path))
+
+    assert settings.go2rtc_api_url == "http://arlo-go2rtc:1984"

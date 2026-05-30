@@ -166,7 +166,25 @@ This starts:
 - **arlo-cam-api** on ports 4000 (camera TCP), 4100 (doorbell TCP), 5000 (REST API)
 - **go2rtc** on ports 8554 (RTSP output), 1984 (web UI/API)
 
-Both containers share a network namespace so they communicate via localhost.
+Both containers are attached to the same Docker networks and communicate through Docker DNS:
+
+- arlo-cam-api reaches go2rtc at `http://arlo-go2rtc:1984`
+- go2rtc reaches arlo-cam-api at `http://arlo-cam-api:5000`
+
+This keeps restarts independent. If either container is recreated and receives a new IP address,
+Docker DNS resolves the current container instead of relying on a shared network namespace.
+
+For non-compose deployments, keep the default localhost behavior or set:
+
+```yaml
+Go2RTCApiUrl: "http://arlo-go2rtc:1984"
+```
+
+And pass the API URL to the go2rtc helper:
+
+```bash
+ARLO_API_URL=http://arlo-cam-api:5000
+```
 
 ### Consuming Streams
 

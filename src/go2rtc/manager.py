@@ -18,7 +18,9 @@ class Go2RTCManager:
     def __init__(self, registry: DeviceRegistry, settings) -> None:
         self._registry = registry
         self._settings = settings
-        self._api_base = f"http://127.0.0.1:{settings.go2rtc_api_port}"
+        self._api_base = (
+            settings.go2rtc_api_url.rstrip("/") or f"http://127.0.0.1:{settings.go2rtc_api_port}"
+        )
 
     async def generate_config(self) -> None:
         from src.devices.camera import Camera

@@ -5,13 +5,14 @@ services:
     ports:
       - "4000:4000"
       - "4100:4100"
-      - "8554:8554"
     networks:
       - web
       - default
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - data:/data
+    environment:
+      GO2RTC_API_URL: "http://arlo-go2rtc:1984"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.arlocam.rule=Host(`arlocam.iflorian.com`)"
@@ -21,6 +22,25 @@ services:
       - "traefik.http.routers.arlocam.middlewares=chain-local-only@file"
       - "traefik.http.routers.arlocam.service=arlocam"
       - "traefik.http.services.arlocam.loadbalancer.server.port=5000"
+    restart: unless-stopped
+
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: arlo-go2rtc
+    depends_on:
+      - arlo-cam-api
+    networks:
+      - web
+      - default
+    ports:
+      - "8554:8554"
+    environment:
+      ARLO_API_URL: "http://arlo-cam-api:5000"
+    volumes:
+      - data:/data:ro
+      - ./stream_helper.sh:/app/stream_helper.sh:ro
+    labels:
+      - "traefik.enable=true"
       - "traefik.http.routers.arlocam-go2rtc.rule=Host(`arlocam-go2rtc.iflorian.com`)"
       - "traefik.http.routers.arlocam-go2rtc.entrypoints=https"
       - "traefik.http.routers.arlocam-go2rtc.tls=true"
@@ -28,17 +48,6 @@ services:
       - "traefik.http.routers.arlocam-go2rtc.middlewares=chain-local-only@file"
       - "traefik.http.routers.arlocam-go2rtc.service=arlocam-go2rtc"
       - "traefik.http.services.arlocam-go2rtc.loadbalancer.server.port=1984"
-    restart: unless-stopped
-
-  go2rtc:
-    image: alexxit/go2rtc:latest
-    container_name: arlo-go2rtc
-    network_mode: "service:arlo-cam-api"
-    depends_on:
-      - arlo-cam-api
-    volumes:
-      - data:/data:ro
-      - ./stream_helper.sh:/app/stream_helper.sh:ro
     command: ["go2rtc", "-config", "/data/go2rtc.yaml"]
     restart: unless-stopped
 
