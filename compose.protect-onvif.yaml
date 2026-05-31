@@ -23,6 +23,7 @@ services:
       - OTEL_METRICS_EXPORTER=otlp
       - OTEL_LOGS_EXPORTER=otlp
       - OTEL_PYTHON_LOG_CORRELATION=true
+      - OTEL_PYTHON_FASTAPI_EXCLUDED_URLS=health
       - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
       - OTEL_PYTHON_EXCLUDED_URLS=health,favicon.ico
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
