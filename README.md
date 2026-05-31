@@ -228,6 +228,8 @@ When these values are set, the system:
 - Disables the idle watchdog (stream won't auto-stop without a viewer)
 - Camera stays live 24/7
 
+This should only be used for externally powered cameras. Battery cameras should stay on-demand so the stream watchdog can stop the camera after the last consumer stops refreshing the stream.
+
 To revert to on-demand mode:
 
 ```bash
@@ -291,6 +293,88 @@ When configured, the server POSTs JSON to your webhook URLs on camera events:
 - **Motion timeout**: motion event ended
 - **Button press**: doorbell button pressed
 - **Audio**: audio alert triggered
+
+Webhook consumers should treat the event type as the webhook URL contract, not as a guaranteed payload field. For example, `MotionRecordingWebHookUrl` receives motion events; the payload does not include `alert_type`.
+
+#### Motion webhook payload
+
+`MotionRecordingWebHookUrl` receives this JSON shape:
+
+```json
+{
+  "ip": "192.168.4.8",
+  "friendly_name": "Front Entrance",
+  "hostname": "VMC3030-66D7B",
+  "serial_number": "4N72777366D7B",
+  "zone": [],
+  "file_name": "",
+  "time": 1780233785.7613697
+}
+```
+
+Use `serial_number` as the stable camera identifier. Do not key consumers on `serial` or `alert_type`; those fields are not emitted by the motion webhook.
+
+#### Home Assistant webhook example
+
+```yaml
+- id: arlo_motion_webhook
+  alias: Arlo Motion Webhook
+  mode: parallel
+  triggers:
+    - trigger: webhook
+      webhook_id: arlo-motion
+      allowed_methods: [POST]
+      local_only: true
+  variables:
+    serial: "{{ trigger.json.serial_number | default('') }}"
+    timer_entity: >-
+      {{ {
+        '4N72777366D7B': 'timer.arlo_front_entrance_motion'
+      }.get(serial, '') }}
+  conditions:
+    - condition: template
+      value_template: "{{ timer_entity != '' }}"
+  actions:
+    - action: timer.start
+      target:
+        entity_id: "{{ timer_entity }}"
+      data:
+        duration: "00:01:00"
+```
+
+For motion recording, battery-powered cameras need an explicit stream lifecycle around the recording:
+
+1. POST `/device/:serial/userstreamactive` with `{"active": 1}`.
+2. Wait for the camera stream to wake.
+3. Record from go2rtc, such as `https://<go2rtc-host>/api/stream.mp4?src=<stream_name>`.
+4. POST `/device/:serial/userstreamactive` with `{"active": 0}` after recording completes.
+
+USB-powered always-on cameras do not need this wake/stop wrapper if `MaxUserStreamTimeLimit` and `MaxStreamTimeLimit` are set to `86400` or higher.
+
+## UniFi Protect / ONVIF
+
+UniFi Protect supports adopting ONVIF-compatible third-party cameras. Go2rtc can expose each configured stream through its ONVIF server, so the recommended Protect path is:
+
+1. Run arlo-cam-api normally so it manages Arlo registration, desired state, and stream activation.
+2. Run go2rtc with host networking so ONVIF WS-Discovery works on the same L2 network as the UniFi console.
+3. Enable third-party camera discovery in UniFi Protect and adopt the go2rtc ONVIF cameras.
+
+The repo includes `compose.protect-onvif.yaml` for this topology:
+
+```bash
+docker compose -f compose.protect-onvif.yaml up -d
+```
+
+This compose file intentionally differs from the default sidecar topology:
+
+- `go2rtc` uses `network_mode: host` so ONVIF discovery traffic can reach Protect.
+- arlo-cam-api publishes port `5000` on the Docker host.
+- go2rtc calls arlo-cam-api at `http://127.0.0.1:5000`.
+- arlo-cam-api calls go2rtc at `http://host.docker.internal:1984`.
+
+Protect should see one ONVIF profile per go2rtc stream. Streams are H.264 RTSP and go2rtc's ONVIF server supports TCP RTSP transport. Battery-powered cameras remain on-demand and will still wake through `stream_helper.sh` when Protect opens a stream. USB-powered cameras can be configured as always-on with the register-set values above for faster live view and recording startup.
+
+Official UniFi guidance says third-party camera motion detections must be configured on the camera and sent to Protect. Arlo PIR events are already available through arlo-cam-api webhooks, but forwarding those events into Protect as ONVIF motion events is separate from basic ONVIF adoption and should be treated as a follow-up feature if Protect does not infer motion from the video stream in your environment.
 
 ## Quality Presets
 

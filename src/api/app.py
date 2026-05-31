@@ -17,7 +17,15 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="arlo-cam-api",
         version="2.0.0",
-        description="Local base station emulator for Arlo cameras with go2rtc RTSP streaming.",
+        description=(
+            "Local base station emulator for Arlo cameras with go2rtc RTSP streaming.\n\n"
+            "Webhook consumers should treat the configured webhook URL as the event contract. "
+            "For example, MotionRecordingWebHookUrl receives motion events and the payload "
+            "uses serial_number as the stable camera identifier; it does not include alert_type.\n\n"
+            "Battery cameras should stay on-demand: start /device/{serial}/userstreamactive "
+            "before recording and stop it afterwards. Externally powered cameras can use "
+            "MaxUserStreamTimeLimit and MaxStreamTimeLimit values of 86400 for always-on streaming."
+        ),
     )
     app.state.start_time = time.time()
     app.include_router(device_router)
@@ -45,7 +53,7 @@ async def _build_landing_page(request: Request) -> str:
     rtsp_port = settings.go2rtc_rtsp_port if settings.go2rtc_enabled else 8554
     api_port = settings.go2rtc_api_port if settings.go2rtc_enabled else 1984
 
-    from src.devices.camera import Camera, ALWAYS_ON_STREAM_LIMIT
+    from src.devices.camera import Camera
     cameras = []
     for device in registry.get_all():
         if not isinstance(device, Camera):
@@ -78,7 +86,13 @@ async def _build_landing_page(request: Request) -> str:
 <head>
     <title>arlo-cam-api</title>
     <style>
-        body {{ font-family: -apple-system, system-ui, sans-serif; max-width: 900px; margin: 40px auto; padding: 0 20px; color: #333; }}
+        body {{
+            font-family: -apple-system, system-ui, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+            color: #333;
+        }}
         h1 {{ border-bottom: 2px solid #eee; padding-bottom: 10px; }}
         h2 {{ margin-top: 30px; }}
         table {{ border-collapse: collapse; width: 100%; margin: 10px 0; }}
@@ -120,12 +134,47 @@ async def _build_landing_page(request: Request) -> str:
   -d '{{"MaxUserStreamTimeLimit": 86400, "MaxStreamTimeLimit": 86400}}'</pre>
     <p>To revert to on-demand mode, set both values to <code>1800</code>.</p>
 
+    <h2>Motion Webhooks</h2>
+    <p>
+        <code>MotionRecordingWebHookUrl</code> receives PIR motion events.
+        Use <code>serial_number</code> as the stable camera identifier;
+        the motion payload does not include <code>alert_type</code>.
+    </p>
+    <pre>{{
+  "ip": "192.168.4.8",
+  "friendly_name": "Front Entrance",
+  "hostname": "VMC3030-66D7B",
+  "serial_number": "4N72777366D7B",
+  "zone": [],
+  "file_name": "",
+  "time": 1780233785.7613697
+}}</pre>
+
+    <h2>Battery Motion Recording</h2>
+    <p>For battery cameras, wrap recording with stream start and stop calls so the camera can sleep again:</p>
+    <pre>curl -X POST http://{host}:5000/device/SERIAL/userstreamactive \\
+  -H "Content-Type: application/json" -d '{{"active": 1}}'
+
+# Record from go2rtc, then stop the stream:
+curl -X POST http://{host}:5000/device/SERIAL/userstreamactive \\
+  -H "Content-Type: application/json" -d '{{"active": 0}}'</pre>
+
+    <h2>UniFi Protect / ONVIF</h2>
+    <p>
+        Use <code>compose.protect-onvif.yaml</code> when adopting streams in UniFi Protect.
+        It runs go2rtc with host networking so ONVIF discovery can see each go2rtc stream
+        while arlo-cam-api continues to manage Arlo wake and stream state.
+    </p>
+
     <h2>Notes</h2>
     <ul>
         <li>On-demand cameras take 5-60s to start streaming (camera must wake from sleep)</li>
         <li>Always-on cameras stream immediately with no delay</li>
         <li>Consumer-side RTSP transport must be TCP (go2rtc handles this automatically)</li>
-        <li>Cameras wake faster with <code>MaxMissedBeaconTime: 10</code> (set via <code>/device/SERIAL/registerset</code>)</li>
+        <li>
+            Cameras wake faster with <code>MaxMissedBeaconTime: 10</code>
+            (set via <code>/device/SERIAL/registerset</code>)
+        </li>
     </ul>
 </body>
 </html>"""

@@ -17,6 +17,21 @@ async def test_landing_page(client):
     resp = await client.get("/")
     assert resp.status_code == 200
     assert "arlo-cam-api" in resp.text
+    assert "MotionRecordingWebHookUrl" in resp.text
+    assert "serial_number" in resp.text
+    assert "UniFi Protect / ONVIF" in resp.text
+
+
+@pytest.mark.asyncio
+async def test_openapi_documents_stream_lifecycle(client):
+    resp = await client.get("/openapi.json")
+    assert resp.status_code == 200
+    paths = resp.json()["paths"]
+    user_stream = paths["/device/{serial}/userstreamactive"]["post"]
+    register_set = paths["/device/{serial}/registerset"]["post"]
+
+    assert "battery-powered" in user_stream["description"]
+    assert "86400" in register_set["description"]
 
 
 @pytest.mark.asyncio

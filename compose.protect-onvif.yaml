@@ -1,0 +1,64 @@
+services:
+  arlo-cam-api:
+    image: ghcr.io/caffeineflo/arlo-cam-api:latest
+    container_name: arlo-cam-api
+    ports:
+      - "4000:4000"
+      - "4100:4100"
+      - "5000:5000"
+    networks:
+      - web
+      - default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /dockerfs/arlocam/config.yaml:/app/config.yaml:ro
+      - data:/data
+    environment:
+      - GO2RTC_API_URL=http://host.docker.internal:1984
+      - OTEL_SERVICE_NAME=arlo-cam-api
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://signoz-otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_PYTHON_LOG_CORRELATION=true
+      - OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true
+      - OTEL_PYTHON_EXCLUDED_URLS=health,favicon.ico
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.arlocam.rule=Host(`arlocam.iflorian.com`)"
+      - "traefik.http.routers.arlocam.entrypoints=https"
+      - "traefik.http.routers.arlocam.tls=true"
+      - "traefik.http.routers.arlocam.tls.certresolver=letsEncrypt"
+      - "traefik.http.routers.arlocam.middlewares=chain-local-only@file"
+      - "traefik.http.routers.arlocam.service=arlocam"
+      - "traefik.http.services.arlocam.loadbalancer.server.port=5000"
+    restart: unless-stopped
+
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: arlo-go2rtc
+    depends_on:
+      - arlo-cam-api
+    network_mode: host
+    environment:
+      - ARLO_API_URL=http://127.0.0.1:5000
+    volumes:
+      - data:/data:ro
+      - /dockerfs/stacks/arlocam/stream_helper.sh:/app/stream_helper.sh:ro
+    command: ["go2rtc", "-config", "/data/go2rtc.yaml"]
+    restart: unless-stopped
+
+networks:
+  web:
+    external: true
+
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /dockerfs/arlocam/v2-data

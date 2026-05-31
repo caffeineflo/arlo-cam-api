@@ -90,7 +90,25 @@ async def status_request(serial: str, request: Request):
     return {"result": False}
 
 
-@router.post("/device/{serial}/userstreamactive")
+@router.post(
+    "/device/{serial}/userstreamactive",
+    summary="Start or stop a camera stream",
+    description=(
+        "Set active to true before recording from a battery-powered camera, then set active "
+        "to false after recording completes so the stream watchdog can let the camera sleep. "
+        "Externally powered always-on cameras do not need this wrapper when their stream "
+        "limits are configured to 86400 or higher."
+    ),
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "example": {"active": 1},
+                },
+            },
+        },
+    },
+)
 async def user_stream_active(serial: str, request: Request):
     body = await request.json()
     registry = _get_registry(request)
@@ -105,7 +123,15 @@ async def user_stream_active(serial: str, request: Request):
     return {"result": False}
 
 
-@router.post("/device/{serial}/streamrefresh")
+@router.post(
+    "/device/{serial}/streamrefresh",
+    summary="Refresh an active on-demand stream",
+    description=(
+        "Reset the on-demand stream watchdog. Consumers should call this periodically while "
+        "recording or viewing a battery camera. If no refresh arrives within the watchdog "
+        "window, arlo-cam-api stops the stream to preserve battery."
+    ),
+)
 async def refresh_stream(serial: str, request: Request):
     """Called by stream consumers to keep the stream alive (resets watchdog timer)."""
     registry = _get_registry(request)
@@ -189,7 +215,39 @@ async def set_friendly_name(serial: str, request: Request):
     return {"result": True}
 
 
-@router.post("/device/{serial}/registerset")
+@router.post(
+    "/device/{serial}/registerset",
+    summary="Send and persist camera register values",
+    description=(
+        "Use MaxUserStreamTimeLimit and MaxStreamTimeLimit values of 86400 or higher only "
+        "for externally powered cameras that should stay always-on. Battery cameras should "
+        "use shorter limits so they remain on-demand and can sleep after recording."
+    ),
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "application/json": {
+                    "examples": {
+                        "always_on_usb_powered": {
+                            "summary": "Always-on for USB-powered cameras",
+                            "value": {
+                                "MaxUserStreamTimeLimit": 86400,
+                                "MaxStreamTimeLimit": 86400,
+                            },
+                        },
+                        "on_demand_battery": {
+                            "summary": "On-demand for battery cameras",
+                            "value": {
+                                "MaxUserStreamTimeLimit": 1800,
+                                "MaxStreamTimeLimit": 1800,
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+)
 async def send_register_set(serial: str, request: Request):
     body = await request.json()
     registry = _get_registry(request)
