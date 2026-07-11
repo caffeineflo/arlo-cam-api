@@ -20,6 +20,8 @@ jobs:
           python-version: "3.12"
       - run: pip install ".[dev]"
       - run: ruff check .
+      - run: sh -n stream_helper.sh
+      - run: shellcheck stream_helper.sh
       - run: pytest tests/ -v
 
   build:
