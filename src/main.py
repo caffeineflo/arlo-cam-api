@@ -122,7 +122,7 @@ async def main() -> None:
                 logger.info("shutdown_stream_deactivate", serial=device.serial_number)
         if cameras:
             results = await asyncio.gather(
-                *(camera.quiesce_stream(force=True) for camera in cameras),
+                *(camera.quiesce_stream() for camera in cameras),
                 return_exceptions=True,
             )
             for camera, result in zip(cameras, results, strict=True):

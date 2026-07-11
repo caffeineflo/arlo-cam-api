@@ -302,6 +302,21 @@ async def test_quiesce_waits_for_successful_stop_retry(sample_camera, monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_quiesce_does_not_command_idle_battery_camera(sample_camera, monkeypatch):
+    commands = []
+
+    async def send_message(message):
+        commands.append(message)
+        return {"ID": message["ID"], "Response": "Ack"}
+
+    monkeypatch.setattr(sample_camera, "send_message", send_message)
+
+    result = await sample_camera.quiesce_stream()
+
+    assert (result, commands) == (True, [])
+
+
+@pytest.mark.asyncio
 async def test_nack_does_not_mark_stream_stopped(sample_camera, monkeypatch):
     sample_camera._stream_active = True
 
