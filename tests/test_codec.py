@@ -37,8 +37,6 @@ async def test_read_message_empty_returns_none():
 async def test_write_message():
     payload = {"Type": "response", "ID": 1, "Response": "Ack"}
 
-    writer_transport = asyncio.StreamReader()
-
     class FakeWriter:
         def __init__(self):
             self.data = b""

@@ -1,11 +1,10 @@
-import socket
 import json
+import socket
 
 from arlo.messages import Message
 
 
 class ArloSocket:
-
     def __init__(self, sock=None):
         if sock is None:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -16,27 +15,27 @@ class ArloSocket:
         self.sock.connect((host, port))
 
     def send(self, message):
-        self.sock.sendall(message.toNetworkMessage())
+        self.sock.sendall(message.to_network_message())
 
     def receive(self):
         chunk = self.sock.recv(1024)
-        if chunk == b'':
+        if chunk == b"":
             self.close()
             raise RuntimeError("socket connection closed")
 
         data = chunk.decode(encoding="utf-8")
         if data.startswith("L:"):
             delimiter = data.index(" ")
-            dataLength = int(data[2:delimiter])
-            json_data = data[delimiter+1:delimiter+1+dataLength]
+            data_length = int(data[2:delimiter])
+            json_data = data[delimiter + 1 : delimiter + 1 + data_length]
         else:
             return None
 
         read = len(json_data)
-        while read < dataLength:
-            to_read = min(dataLength - read, 1024)
+        while read < data_length:
+            to_read = min(data_length - read, 1024)
             chunk = self.sock.recv(to_read)
-            if chunk == b'':
+            if chunk == b"":
                 self.close()
                 raise RuntimeError("socket connection broken")
             chunk_str = chunk.decode(encoding="utf-8")

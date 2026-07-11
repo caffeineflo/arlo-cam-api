@@ -4,26 +4,23 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
 
 import structlog
 from opentelemetry import trace
 
 from src.config import Settings
-from src.devices.base import Device
 from src.devices.camera import Camera
 from src.devices.capabilities import filter_register_set
 from src.devices.factory import create_device
 from src.devices.registry import DeviceRegistry
+from src.messages.quality_presets import QUALITY_REGISTER_SETS
 from src.messages.templates import (
     INITIAL_REGISTER_SET_CAMERA,
     build_ack_message,
-    build_epoch_time_message,
-    build_register_set_message,
 )
 from src.protocol.codec import read_message, write_message
 from src.state.database import Database
-from src.telemetry import span, tracer
+from src.telemetry import tracer
 from src.webhooks.manager import WebhookManager
 
 logger = structlog.get_logger()
@@ -103,35 +100,38 @@ class ConnectionHandler:
             hostname=hostname_full,
             friendly_name=device.friendly_name,
             registration=message,
+            last_seen=device.last_seen,
         )
 
         if isinstance(device, Camera):
-            config = self._build_initial_config()
-            desired = await self.db.get_desired_state(serial)
-            if desired:
-                stored_values = json.loads(desired.get("register_set_values", "{}"))
-                if stored_values:
-                    config.update(stored_values)
-                    log.info("desired_state_applied", keys=list(stored_values.keys()))
+            async with device.policy_lock:
+                desired = await self.db.get_desired_state(serial)
+                stored_values = {}
+                if desired:
+                    stored_values = json.loads(desired.get("register_set_values", "{}"))
+                    if stored_values:
+                        log.info("desired_state_applied", keys=list(stored_values.keys()))
+                config = self._build_initial_config(stored_values)
 
-            from src.devices.camera import ALWAYS_ON_STREAM_LIMIT
-            if config.get("MaxUserStreamTimeLimit", 0) >= ALWAYS_ON_STREAM_LIMIT:
-                device.always_on = True
+                device.configure_stream_policy(
+                    desired.get("power_mode") if desired else None,
+                    config,
+                )
 
-            filtered = filter_register_set(config, model, message)
-            removed = set(config.keys()) - set(filtered.keys())
-            if removed:
-                log.info("capability_filtered", removed=list(removed))
+                filtered = filter_register_set(config, model, message)
+                removed = set(config.keys()) - set(filtered.keys())
+                if removed:
+                    log.info("capability_filtered", removed=list(removed))
 
-            await device.send_initial_config(filtered)
-            await device.send_epoch_time()
+                await device.send_initial_config(filtered)
+                await device.send_epoch_time()
 
-            if desired and desired.get("quality_preset"):
-                await device.send_ra_params(desired["quality_preset"])
+                quality = (desired.get("quality_preset") if desired else None) or self.settings.video_quality_default
+                await device.send_ra_params(quality)
 
-            if device.always_on:
-                await device.set_user_stream_active(True)
-                log.info("always_on_stream_activated", serial=serial)
+                if device.always_on:
+                    await device.set_user_stream_active(True)
+                    log.info("always_on_stream_activated", serial=serial)
 
         if self.go2rtc_manager and isinstance(device, Camera):
             await self.go2rtc_manager.add_stream(device)
@@ -151,7 +151,11 @@ class ConnectionHandler:
             device.update_status(message)
             if isinstance(device, Camera):
                 await device.deliver_pending_stream()
-        await self.db.update_status(serial, message)
+        await self.db.update_status(
+            serial,
+            message,
+            device.last_seen if device else None,
+        )
         await self.webhooks.fire_status(device, message)
 
     async def _handle_alert(self, ip: str, message: dict, log: structlog.BoundLogger) -> None:
@@ -162,6 +166,7 @@ class ConnectionHandler:
 
         if device:
             device.touch()
+            await self.db.update_last_seen(device.serial_number, device.last_seen)
             if isinstance(device, Camera):
                 await device.deliver_pending_stream()
 
@@ -175,8 +180,11 @@ class ConnectionHandler:
         elif alert_type == "audioAlert":
             await self.webhooks.fire_audio(device)
 
-    def _build_initial_config(self) -> dict:
+    def _build_initial_config(self, desired_values: dict | None = None) -> dict:
         config = dict(INITIAL_REGISTER_SET_CAMERA)
+        config.update(QUALITY_REGISTER_SETS[self.settings.video_quality_default])
         config["WifiCountryCode"] = self.settings.wifi_country_code
         config["VideoAntiFlickerRate"] = self.settings.video_anti_flicker_rate
+        if desired_values:
+            config.update(desired_values)
         return config

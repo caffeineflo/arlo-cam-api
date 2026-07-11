@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -12,7 +13,13 @@ class Settings(BaseSettings):
 
     wifi_country_code: str = "US"
     video_anti_flicker_rate: int = 60
-    video_quality_default: str = "insane"
+    video_quality_default: Literal[
+        "low",
+        "medium",
+        "high",
+        "subscription",
+        "insane",
+    ] = "insane"
 
     notify_on_motion_alert: bool = True
     notify_on_motion_timeout_alert: bool = False
@@ -43,7 +50,18 @@ class Settings(BaseSettings):
     go2rtc_rtsp_port: int = 8554
     go2rtc_api_port: int = 1984
     go2rtc_api_url: str = ""
+    go2rtc_api_username: str = ""
+    go2rtc_api_password: str = ""
+    go2rtc_require_api_auth: bool = False
     go2rtc_start_timeout: int = 90
+
+    @model_validator(mode="after")
+    def validate_go2rtc_api_credentials(self):
+        if bool(self.go2rtc_api_username) != bool(self.go2rtc_api_password):
+            raise ValueError("go2rtc API username and password must both be set or both be empty")
+        if self.go2rtc_require_api_auth and not self.go2rtc_api_username:
+            raise ValueError("go2rtc API credentials are required for this deployment")
+        return self
 
 
 _YAML_KEY_MAP = {
@@ -72,6 +90,9 @@ _YAML_KEY_MAP = {
     "Go2RTCRTSPPort": "go2rtc_rtsp_port",
     "Go2RTCAPIPort": "go2rtc_api_port",
     "Go2RTCApiUrl": "go2rtc_api_url",
+    "Go2RTCApiUsername": "go2rtc_api_username",
+    "Go2RTCApiPassword": "go2rtc_api_password",
+    "Go2RTCRequireApiAuth": "go2rtc_require_api_auth",
     "Go2RTCStartTimeout": "go2rtc_start_timeout",
 }
 

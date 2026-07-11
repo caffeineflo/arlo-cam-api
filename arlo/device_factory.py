@@ -1,13 +1,15 @@
-from arlo.camera import Camera, DEVICE_PREFIXES as CAM_PFIXES
-from arlo.audio_doorbell import AudioDoorbell, DEVICE_PREFIXES as AUD_DBELL_PFIXES
-from arlo.video_doorbell import VideoDoorbell, DEVICE_PREFIXES as VID_DBELL_PFIXES
+from arlo.audio_doorbell import DEVICE_PREFIXES as AUD_DBELL_PFIXES
+from arlo.audio_doorbell import AudioDoorbell
+from arlo.camera import DEVICE_PREFIXES as CAM_PFIXES
+from arlo.camera import Camera
+from arlo.video_doorbell import DEVICE_PREFIXES as VID_DBELL_PFIXES
+from arlo.video_doorbell import VideoDoorbell
 
 
 class DeviceFactory:
-
     @staticmethod
-    def createDevice(ip, registration):
-        model_number = registration['SystemModelNumber']
+    def create_device(ip, registration):
+        model_number = registration["SystemModelNumber"]
         if model_number.startswith(tuple(CAM_PFIXES)):
             device = Camera(ip, registration)
         elif model_number.startswith(tuple(AUD_DBELL_PFIXES)):
@@ -18,5 +20,5 @@ class DeviceFactory:
             return None
 
         device.status = {}
-        device.friendly_name = registration['SystemSerialNumber']
+        device.friendly_name = registration["SystemSerialNumber"]
         return device

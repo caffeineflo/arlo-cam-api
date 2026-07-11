@@ -25,24 +25,19 @@ Forked from [brianschrameck/arlo-cam-api](https://github.com/brianschrameck/arlo
 
 ## Quick Start
 
+The included `compose.yaml` matches the production dockerhost layout. It expects the dockerhost to own `192.168.40.11` and stores runtime state outside the repository. From the development machine:
+
 ```bash
 git clone https://github.com/caffeineflo/arlo-cam-api.git
 cd arlo-cam-api
-# Edit config.yaml with your settings
-docker compose up -d
+ssh Proxmox 'mkdir -p /rpool/dockerfs/arlocam/v2-data /rpool/dockerfs/stacks/arlocam'
+ssh Proxmox 'umask 077; { printf "GO2RTC_API_USERNAME=arlo-api\\nGO2RTC_API_PASSWORD="; openssl rand -hex 32; } > /rpool/dockerfs/arlocam/go2rtc.env'
+scp compose.yaml stream_helper.sh Proxmox:/rpool/dockerfs/stacks/arlocam/
+scp config.yaml Proxmox:/rpool/dockerfs/arlocam/config.yaml
+ssh Proxmox 'chmod 0755 /rpool/dockerfs/stacks/arlocam/stream_helper.sh && docker compose -f /rpool/dockerfs/stacks/arlocam/compose.yaml up -d'
 ```
 
-This starts both arlo-cam-api and go2rtc. Streams become available at `rtsp://<host>:8554/<camera_name>` once cameras register.
-
-For arlo-cam-api only (without go2rtc):
-
-```bash
-docker run -d \
-  -p 4000:4000 -p 4100:4100 -p 5000:5000 \
-  -v ./config.yaml:/app/config.yaml \
-  -v ./data:/data \
-  ghcr.io/caffeineflo/arlo-cam-api:latest
-```
+This starts arlo-cam-api and the pinned go2rtc sidecar. Camera listeners use ports 4000 and 4100. RTSP streams become available at `rtsp://192.168.40.11:8554/<camera_name>` once cameras register. The REST API is not published directly; Traefik exposes it only through `https://arlocam.iflorian.com` with the `chain-local-only` middleware.
 
 ## Network Setup
 
@@ -76,37 +71,24 @@ The SSID must match exactly between the pairing AP and the production AP.
 
 ## Configuration
 
-Create a `config.yaml`:
+The checked-in `config.yaml` is the non-secret production baseline:
 
 ```yaml
-WifiCountryCode: "US"
-VideoAntiFlickerRate: 60
-VideoQualityDefault: "insane"
-
-# Notifications
+WifiCountryCode: "DE"
+VideoAntiFlickerRate: 50
+VideoQualityDefault: "high"
 NotifyOnMotionAlert: true
 NotifyOnMotionTimeoutAlert: false
 NotifyOnAudioAlert: false
 NotifyOnButtonPressAlert: true
-
-# Webhooks (leave empty to disable)
-MotionRecordingWebHookUrl: ""
-StatusUpdateWebHookUrl: ""
-RegistrationWebHookUrl: ""
-ButtonPressWebHookUrl: ""
-MotionTimeoutWebHookUrl: ""
-AudioRecordingWebHookUrl: ""
-
-# Optional (shown with defaults)
+MotionRecordingWebHookUrl: "https://hass.iflorian.com/api/webhook/CHANGE_ME"
 DatabasePath: "/data/arlo.db"
-SnapshotCacheTTL: 300
-DeviceOfflineThreshold: 300
-WebhookRetries: 3
-WebhookTimeout: 5
-LogLevel: "INFO"
+Go2RTCEnabled: true
+Go2RTCConfigPath: "/data/go2rtc.yaml"
+Go2RTCApiUrl: "http://arlo-go2rtc:1984"
 ```
 
-All settings can also be set via environment variables (snake_case, e.g. `VIDEO_QUALITY_DEFAULT=insane`).
+Copy this file to `/dockerfs/arlocam/config.yaml` before deployment and replace `CHANGE_ME` only in that live copy. Keep credentials and webhook tokens out of the repository. The production Compose file requires `/dockerfs/arlocam/go2rtc.env` with `GO2RTC_API_USERNAME` and `GO2RTC_API_PASSWORD`; startup fails closed if either is absent. Settings can also be set via environment variables using snake case, for example `VIDEO_QUALITY_DEFAULT=high`.
 
 ## API
 
@@ -122,9 +104,12 @@ All settings can also be set via environment variables (snake_case, e.g. `VIDEO_
 | POST | `/device/:serial/arm` | Arm/disarm motion detection |
 | POST | `/device/:serial/quality` | Set video quality preset |
 | POST | `/device/:serial/registerset` | Send arbitrary register values |
+| PUT | `/device/:serial/power` | Persist `battery` or `external` power mode |
 | POST | `/device/:serial/snapshot` | Request a snapshot |
 | POST | `/device/:serial/statusrequest` | Request status update |
 | POST | `/device/:serial/streamrefresh` | Reset stream watchdog timer |
+| POST | `/device/:serial/stream/leases` | Acquire a bounded stream lease |
+| DELETE | `/device/:serial/stream/leases/:lease_id` | Release a stream lease |
 | POST | `/device/:serial/friendlyname` | Set display name |
 | DELETE | `/device/:serial` | Remove device |
 
@@ -163,16 +148,16 @@ docker compose up -d
 ```
 
 This starts:
-- **arlo-cam-api** on ports 4000 (camera TCP), 4100 (doorbell TCP), 5000 (REST API)
-- **go2rtc** on ports 8554 (RTSP output), 1984 (web UI/API)
 
-Both containers are attached to the same Docker networks and communicate through Docker DNS:
+- **arlo-cam-api** with camera TCP on port 4000 and doorbell TCP on port 4100. Its REST API remains inside Docker and is reachable externally only through local-only Traefik.
+- **go2rtc 1.9.14** with RTSP on `192.168.40.11:8554`. Its HTTP API is not published directly. The image is pinned by tag and multi-platform digest.
+
+The containers share Compose's private default network and communicate through Docker DNS:
 
 - arlo-cam-api reaches go2rtc at `http://arlo-go2rtc:1984`
 - go2rtc reaches arlo-cam-api at `http://arlo-cam-api:5000`
 
-This keeps restarts independent. If either container is recreated and receives a new IP address,
-Docker DNS resolves the current container instead of relying on a shared network namespace.
+Both containers join the private default network. go2rtc also joins `web` only for the local-only, HTTPS `/go2rtc/` route. Native Basic auth protects every go2rtc HTTP endpoint, `local_auth` prevents Docker-network bypass, and `exec.allow_paths` limits commands to `/app/stream_helper.sh`. WebRTC port 8555 is not published.
 
 For non-compose deployments, keep the default localhost behavior or set:
 
@@ -191,16 +176,16 @@ ARLO_API_URL=http://arlo-cam-api:5000
 Once deployed, streams are available at:
 
 ```
-rtsp://<host>:8554/<stream_name>
+rtsp://192.168.40.11:8554/<stream_name>
 ```
 
 Discover available streams:
 
 ```bash
-curl http://<host>:5000/streams
+curl https://arlocam.iflorian.com/streams
 ```
 
-The go2rtc web UI at `http://<host>:1984` lets you view streams in-browser via WebRTC.
+The go2rtc API is available to authenticated local clients at `https://arlocam.iflorian.com/go2rtc/`. Read the username and password from the protected live environment file and use HTTP Basic auth. Traefik supplies TLS and the existing `chain-local-only` network boundary; unauthenticated requests return 401.
 
 ### How It Works
 
@@ -209,34 +194,74 @@ When a consumer connects to an RTSP stream:
 1. go2rtc runs `stream_helper.sh` which pings the camera (triggering AP power-save wake via 802.11 TIM)
 2. Sends the stream activation command to the camera
 3. Waits up to 80 seconds for the camera's RTSP server to come online
-4. Relays the camera's RTSP feed to the consumer via go2rtc
+4. Relays MPEG-TS to go2rtc over the helper's stdout pipe
 
-Cameras sleep between viewer sessions to conserve battery. Typical wake time is 5-15 seconds for USB-powered cameras with `MaxMissedBeaconTime: 10`.
+Cameras in battery mode sleep between viewer sessions. Externally powered cameras remain available continuously.
 
-### Always-On Streaming (USB-Powered Cameras)
+### Power Profiles
 
-For cameras with external power, you can enable continuous streaming - no wake latency, always ready:
+Power source is persisted explicitly as `battery` or `external`. A legacy camera without a stored mode defaults to `battery`, which is the safe failure mode. An external camera becomes always-on only when its mode is `external` and both `MaxUserStreamTimeLimit` and `MaxStreamTimeLimit` are at least 86400.
 
-```bash
-curl -X POST http://<host>:5000/device/SERIAL/registerset \
-  -H "Content-Type: application/json" \
-  -d '{"MaxUserStreamTimeLimit": 86400, "MaxStreamTimeLimit": 86400}'
-```
+The production assignments are:
 
-When these values are set, the system:
-- Auto-activates streaming every time the camera registers (boots/reconnects)
-- Disables the idle watchdog (stream won't auto-stop without a viewer)
-- Camera stays live 24/7
+| Camera | Serial | Power mode | Stream policy |
+|--------|--------|------------|---------------|
+| Front Entrance | `4N72777366D7B` | battery | On-demand, 180-second hardware limit |
+| Garden Right | `4N72777560C4E` | external | Always-on |
+| House Right Side | `4N72777Y669BB` | external | Always-on |
+| Garden Left | `4N72777V66D82` | external | Always-on |
+| Front Left | `4N72777H60692` | external | Always-on |
+| Front Right | `4N72777B5E401` | external | Always-on |
 
-This should only be used for externally powered cameras. Battery cameras should stay on-demand so the stream watchdog can stop the camera after the last consumer stops refreshing the stream.
-
-To revert to on-demand mode:
+Apply Front Entrance's battery-safe stream profile atomically, then set its sensitivity and quality:
 
 ```bash
-curl -X POST http://<host>:5000/device/SERIAL/registerset \
-  -H "Content-Type: application/json" \
-  -d '{"MaxUserStreamTimeLimit": 1800, "MaxStreamTimeLimit": 1800}'
+api=https://arlocam.iflorian.com
+serial=4N72777366D7B
+
+curl --fail-with-body -X PUT "$api/device/$serial/power" \
+  -H 'Content-Type: application/json' \
+  -d '{"mode":"battery"}'
+curl --fail-with-body -X POST "$api/device/$serial/registerset" \
+  -H 'Content-Type: application/json' \
+  -d '{"PIRStartSensitivity":80,"MaxMotionStreamTimeLimit":30}'
+curl --fail-with-body -X POST "$api/device/$serial/quality" \
+  -H 'Content-Type: application/json' \
+  -d '{"quality":"low"}'
 ```
+
+Apply each external-power profile atomically:
+
+```bash
+api=https://arlocam.iflorian.com
+
+for serial in \
+  4N72777560C4E \
+  4N72777Y669BB \
+  4N72777V66D82 \
+  4N72777H60692 \
+  4N72777B5E401
+do
+  curl --fail-with-body -X PUT "$api/device/$serial/power" \
+    -H 'Content-Type: application/json' \
+    -d '{"mode":"external"}'
+done
+```
+
+`GET /device/:serial/desired` reports the stored and effective power mode. Do not infer battery safety from stream-limit values alone. Direct `/arm` or `/registerset` calls that conflict with the active profile return HTTP 400; older two-step power-profile scripts must migrate to the single `PUT /power` operation.
+
+### Front Entrance Consumer Rules
+
+Front Entrance must remain on-demand across every consumer:
+
+- Keep Scrypted Rebroadcast and Prebuffer disabled.
+- On the existing `Arlo Front Door AEEC` accessory, set Snapshot's `Disable Snapshot` option. Do not delete, recreate, or re-pair the accessory; preserving its Scrypted device and HomeKit pairing preserves Apple Home identity and client-side metadata.
+- Do not add Front Entrance to HA's HomeKit bridge or any persistent go2rtc consumer.
+- Do not leave an auto-refreshing camera dashboard open. A viewer or snapshot request is a real wake-up.
+- Keep motion clips to 15-20 seconds. The HA recording automation owns clip duration; the API power profile only bounds the underlying stream.
+- Use a stream lease for every recording or live-view session and release it in cleanup. The TTL is the final safety net if a consumer crashes.
+
+The API enforces one shared 180-second session budget for a battery camera, regardless of how many leases or go2rtc producer reconnects occur. After that budget or the final lease ends, a 30-second cooldown rejects new leases with HTTP 429 and `Retry-After`. This prevents a persistent consumer from chaining helper processes into an unlimited battery session.
 
 ## Home Assistant Integration
 
@@ -256,32 +281,35 @@ streams:
 HA's built-in go2rtc handles buffering and serves WebRTC/HLS to dashboards. The go2rtc integration auto-creates camera entities from these streams.
 
 **Important notes for HA:**
+
 - Consumer-side RTSP transport must be TCP (go2rtc handles this automatically)
 - On-demand cameras take 5-60s to start on first viewer connect
 - Always-on cameras are instant
-- The source go2rtc web UI at `http://<host>:1984` can be used to verify streams
+- Use the authenticated `https://arlocam.iflorian.com/go2rtc/api/streams` endpoint to verify actual producers and consumers
+- A visible live card can keep Front Entrance awake; do not use preload or automatic refresh for that camera
+- Battery, PIR-count, streamed-seconds, failed-stream, lease, cooldown, and actual go2rtc state sensors should read `/devices/status` instead of polling the physical camera
 
 ### Streaming (Low-Level API)
 
-For direct stream control without go2rtc:
+For direct stream control without go2rtc, acquire a bounded lease. Multiple consumers can hold independent leases; the camera stops only after the final lease is released or expires.
 
 ```bash
-# Start stream
-curl -X POST http://localhost:5000/device/SERIAL/userstreamactive \
-  -H "Content-Type: application/json" -d '{"active": 1}'
+api=https://arlocam.iflorian.com
+serial=SERIAL
 
-# Stream is now available at rtsp://CAMERA_IP/live (port 554)
-# For 4K cameras, use port 555
+curl --fail-with-body -X POST "$api/device/$serial/stream/leases" \
+  -H 'Content-Type: application/json' \
+  -d '{"owner":"manual-view","ttl_seconds":180}'
 
-# Keep stream alive (call every ~30s)
-curl -X POST http://localhost:5000/device/SERIAL/streamrefresh
-
-# Stop stream
-curl -X POST http://localhost:5000/device/SERIAL/userstreamactive \
-  -H "Content-Type: application/json" -d '{"active": 0}'
+# The response contains the lease_id. Release that same ID in cleanup.
+lease_id=RETURNED_LEASE_ID
+curl --fail-with-body -X DELETE \
+  "$api/device/$serial/stream/leases/$lease_id"
 ```
 
-If no refresh is received within 45 seconds, the stream is automatically stopped to preserve battery.
+The TTL must cover expected startup and use but remain bounded. It prevents a crashed consumer from holding a battery camera indefinitely. Consumers should always release their lease in a `finally` block or equivalent cleanup path.
+
+The legacy `/userstreamactive` and `/streamrefresh` endpoints remain available for compatibility, but new integrations should use leases so overlapping consumers cannot stop one another.
 
 ### Webhooks
 
@@ -322,7 +350,7 @@ Use `serial_number` as the stable camera identifier. Do not key consumers on `se
   mode: parallel
   triggers:
     - trigger: webhook
-      webhook_id: arlo-motion
+      webhook_id: CHANGE_ME
       allowed_methods: [POST]
       local_only: true
   variables:
@@ -344,37 +372,18 @@ Use `serial_number` as the stable camera identifier. Do not key consumers on `se
 
 For motion recording, battery-powered cameras need an explicit stream lifecycle around the recording:
 
-1. POST `/device/:serial/userstreamactive` with `{"active": 1}`.
+1. POST `/device/:serial/stream/leases` with a stable owner name and bounded TTL.
 2. Wait for the camera stream to wake.
-3. Record from go2rtc, such as `https://<go2rtc-host>/api/stream.mp4?src=<stream_name>`.
-4. POST `/device/:serial/userstreamactive` with `{"active": 0}` after recording completes.
+3. Record with Basic auth from `https://arlocam.iflorian.com/go2rtc/api/stream.mp4?src=<stream_name>`.
+4. DELETE `/device/:serial/stream/leases/:lease_id` in cleanup after recording completes.
 
-USB-powered always-on cameras do not need this wake/stop wrapper if `MaxUserStreamTimeLimit` and `MaxStreamTimeLimit` are set to `86400` or higher.
+Externally powered always-on cameras do not need this wake/stop wrapper when their explicit mode is `external` and both stream limits are at least 86400.
 
 ## UniFi Protect / ONVIF
 
-UniFi Protect supports adopting ONVIF-compatible third-party cameras. Go2rtc can expose each configured stream through its ONVIF server, so the recommended Protect path is:
+`compose.protect-onvif.yaml` is an optional topology for ONVIF discovery. go2rtc uses host networking so WS-Discovery can reach UniFi Protect, but the REST API still is not published on port 5000. The host-networked helper calls `https://arlocam.iflorian.com`, which retains the local-only Traefik boundary. arlo-cam-api reaches host-networked go2rtc through the `arlo-go2rtc:host-gateway` mapping.
 
-1. Run arlo-cam-api normally so it manages Arlo registration, desired state, and stream activation.
-2. Run go2rtc with host networking so ONVIF WS-Discovery works on the same L2 network as the UniFi console.
-3. Enable third-party camera discovery in UniFi Protect and adopt the go2rtc ONVIF cameras.
-
-The repo includes `compose.protect-onvif.yaml` for this topology:
-
-```bash
-docker compose -f compose.protect-onvif.yaml up -d
-```
-
-This compose file intentionally differs from the default sidecar topology:
-
-- `go2rtc` uses `network_mode: host` so ONVIF discovery traffic can reach Protect.
-- arlo-cam-api publishes port `5000` on the Docker host.
-- go2rtc calls arlo-cam-api at `http://127.0.0.1:5000`.
-- arlo-cam-api calls go2rtc at `http://host.docker.internal:1984`.
-
-Protect should see one ONVIF profile per go2rtc stream. Streams are H.264 RTSP and go2rtc's ONVIF server supports TCP RTSP transport. Battery-powered cameras remain on-demand and will still wake through `stream_helper.sh` when Protect opens a stream. USB-powered cameras can be configured as always-on with the register-set values above for faster live view and recording startup.
-
-Official UniFi guidance says third-party camera motion detections must be configured on the camera and sent to Protect. Arlo PIR events are already available through arlo-cam-api webhooks, but forwarding those events into Protect as ONVIF motion events is separate from basic ONVIF adoption and should be treated as a follow-up feature if Protect does not infer motion from the video stream in your environment.
+Host networking exposes go2rtc's enabled listeners on the dockerhost. Use this topology only when ONVIF discovery is required and firewall those listeners to trusted camera and management networks. The default production `compose.yaml` is narrower and intentionally omits ONVIF/WebRTC port 8555.
 
 ## Quality Presets
 
@@ -396,8 +405,27 @@ Unlike the original project, this version persists your camera settings. When yo
 
 ```bash
 pip install ".[dev]"
+ruff check .
 pytest tests/ -v
 ```
+
+## CI and Deployment
+
+Pull requests and pushes to `main` run Ruff and pytest with read-only repository permissions. A push to `main` builds and publishes multi-platform GHCR images only after that test job passes. It publishes both `latest` and the immutable commit SHA.
+
+For a controlled rollout, wait for CI to finish and deploy the immutable SHA first:
+
+```bash
+cd /rpool/dockerfs/stacks/arlocam
+export ARLO_CAM_API_IMAGE=ghcr.io/caffeineflo/arlo-cam-api:GITHUB_COMMIT_SHA
+docker compose pull arlo-cam-api
+docker compose up -d --no-deps arlo-cam-api
+docker compose up -d --no-deps --force-recreate go2rtc
+docker compose ps
+curl --fail-with-body https://arlocam.iflorian.com/health
+```
+
+Recreating go2rtc is required on this first rollout so it loads the newly generated authenticated config and the updated stdout-pipe helper. Verify that unauthenticated go2rtc HTTP requests return 401, authenticated requests succeed through the local-only HTTPS route, Front Entrance is `battery` with `180/180`, and the five USB cameras are `external` with `86400/86400`. Then verify camera registration, stream process counts, and Front Entrance sleep behavior before allowing automation to follow `latest`. To roll back, repeat the same commands with the last known-good SHA tag. Do not build or copy an unverified local working tree onto the dockerhost.
 
 ## License
 

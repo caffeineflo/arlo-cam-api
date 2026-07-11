@@ -89,7 +89,13 @@ class WebhookManager:
                         return
                     logger.warning("webhook_http_error", url=url, event=event_type, status=resp.status_code)
                 except httpx.RequestError as e:
-                    logger.warning("webhook_request_error", url=url, event=event_type, attempt=attempt + 1, error=str(e))
+                    logger.warning(
+                        "webhook_request_error",
+                        url=url,
+                        event=event_type,
+                        attempt=attempt + 1,
+                        error=str(e),
+                    )
             span.set_attribute("webhook.attempts", self.settings.webhook_retries)
             span.set_status(trace.StatusCode.ERROR, f"all {self.settings.webhook_retries} attempts failed")
 
@@ -107,4 +113,5 @@ class WebhookManager:
 
 def _json_str(d: dict) -> str:
     import json
+
     return json.dumps(d)

@@ -1,21 +1,23 @@
 services:
   arlo-cam-api:
-    image: ghcr.io/caffeineflo/arlo-cam-api:latest
+    image: ${ARLO_CAM_API_IMAGE:-ghcr.io/caffeineflo/arlo-cam-api:latest}
     container_name: arlo-cam-api
     ports:
       - "4000:4000"
       - "4100:4100"
-      - "5000:5000"
     networks:
       - web
       - default
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "arlo-go2rtc:host-gateway"
     volumes:
       - /dockerfs/arlocam/config.yaml:/app/config.yaml:ro
-      - data:/data
+      - /dockerfs/arlocam/v2-data:/data
+    env_file:
+      - /dockerfs/arlocam/go2rtc.env
     environment:
-      - GO2RTC_API_URL=http://host.docker.internal:1984
+      - GO2RTC_API_URL=http://arlo-go2rtc:1984
+      - GO2RTC_REQUIRE_API_AUTH=true
       - OTEL_SERVICE_NAME=arlo-cam-api
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://signoz-otel-collector:4317
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
@@ -39,27 +41,21 @@ services:
     restart: unless-stopped
 
   go2rtc:
-    image: alexxit/go2rtc:latest
+    image: alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae
     container_name: arlo-go2rtc
     depends_on:
       - arlo-cam-api
     network_mode: host
     environment:
-      - ARLO_API_URL=http://127.0.0.1:5000
+      - ARLO_API_URL=https://arlocam.iflorian.com
     volumes:
-      - data:/data:ro
+      - /dockerfs/arlocam/v2-data:/data:ro
       - /dockerfs/stacks/arlocam/stream_helper.sh:/app/stream_helper.sh:ro
+    labels:
+      - "traefik.enable=false"
     command: ["go2rtc", "-config", "/data/go2rtc.yaml"]
     restart: unless-stopped
 
 networks:
   web:
     external: true
-
-volumes:
-  data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /dockerfs/arlocam/v2-data

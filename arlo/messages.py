@@ -14,24 +14,24 @@ class Message:
     def __contains__(self, item):
         return item in self.dictionary
 
-    def toNetworkMessage(self):
-        msgJson = json.dumps(self.dictionary, separators=(',', ':'))
-        length = len(msgJson)
-        final = f"L:{length} {msgJson}"
+    def to_network_message(self):
+        msg_json = json.dumps(self.dictionary, separators=(",", ":"))
+        length = len(msg_json)
+        final = f"L:{length} {msg_json}"
         return str.encode(final)
 
-    def toJSON(self):
-        return json.dumps(self.dictionary, separators=(',', ':'))
+    def to_json(self):
+        return json.dumps(self.dictionary, separators=(",", ":"))
 
     def __repr__(self):
-        return json.dumps(self.dictionary, separators=(',', ':'))
+        return json.dumps(self.dictionary, separators=(",", ":"))
 
     def __str__(self):
         return json.dumps(self.dictionary, indent=4)
 
     @staticmethod
     def from_json(json_data):
-        if (json_data is not None and json_data != "None"):
+        if json_data is not None and json_data != "None":
             return Message(json.loads(json_data))
         else:
             return None
@@ -56,14 +56,30 @@ REGISTRATION = {
     "ThermalShutdownRechargeMaxTemp": 60,
     "Temperature": 20,
     "InterfaceVersion": 1,
-    "Capabilities": ["IRLED", "PirMotion", "NightVision", "Temperature", "BatteryLevel", "Microphone", "Speaker", "SignalStrength", "Solar", "BatteryCharging", "H.264Streaming", "JPEGSnapshot", "AutomatedStop", "BEC", "RaParams"],
+    "Capabilities": [
+        "IRLED",
+        "PirMotion",
+        "NightVision",
+        "Temperature",
+        "BatteryLevel",
+        "Microphone",
+        "Speaker",
+        "SignalStrength",
+        "Solar",
+        "BatteryCharging",
+        "H.264Streaming",
+        "JPEGSnapshot",
+        "AutomatedStop",
+        "BEC",
+        "RaParams",
+    ],
     "HardwareRevision": "H3",
     "Sync": False,
     "BattChargeMinTemp": 0,
     "BattChargeMaxTemp": 60,
     "ThermalShutdownMinTemp": -20,
     "ThermalShutdownMaxTemp": 74,
-    "BootSeconds": 4
+    "BootSeconds": 4,
 }
 # FROM CAMERA
 STATUS = {
@@ -97,7 +113,8 @@ STATUS = {
     "SnapshotCount": 0,
     "LogFrequency": 2,
     "CriticalBatStatus": 0,
-    "ISPOn": 15, "TimeAtPlug": 0,
+    "ISPOn": 15,
+    "TimeAtPlug": 0,
     "TimeAtUnPlug": 0,
     "PercentAtPlug": 0,
     "PercentAtUnPlug": 0,
@@ -112,7 +129,7 @@ STATUS = {
     "TxErr": 0,
     "TxFail": 0,
     "TxPhyE1": 0,
-    "TxPhyE2": 0
+    "TxPhyE2": 0,
 }
 
 # FROM CAMERA
@@ -121,23 +138,23 @@ ALERT = {
     "ID": 7,
     "AlertType": "pirMotionAlert",
     "PIRMotion": {
-            "Triggered": True,
-            "TriggerLevel": 7970,
-            "TriggerRtpTime": 0,
-            "TriggerSysTime": 1,
-            "zones": [],
-            "MdZones": 0,
-            "MdPrevZones": 0,
-            "PirTrigger": 0,
-            "z0Intensity": 0,
-            "z0Counter": 0,
-            "z1Intensity": 0,
-            "z1Counter": 0,
-            "z2Intensity": 0,
-            "z2Counter": 0,
-            "z3Intensity": 0,
-            "z3Counter": 0
-    }
+        "Triggered": True,
+        "TriggerLevel": 7970,
+        "TriggerRtpTime": 0,
+        "TriggerSysTime": 1,
+        "zones": [],
+        "MdZones": 0,
+        "MdPrevZones": 0,
+        "PirTrigger": 0,
+        "z0Intensity": 0,
+        "z0Counter": 0,
+        "z1Intensity": 0,
+        "z1Counter": 0,
+        "z2Intensity": 0,
+        "z2Counter": 0,
+        "z3Intensity": 0,
+        "z3Counter": 0,
+    },
 }
 # FROM CAMERA - SMART ENABLED?
 ALERT_SMART = {
@@ -145,23 +162,23 @@ ALERT_SMART = {
     "ID": -1,
     "AlertType": "pirMotionAlert",
     "PIRMotion": {
-            "Triggered": True,
-            "TriggerLevel": 0,
-            "TriggerRtpTime": 0,
-            "TriggerSysTime": 2857,
-            "zones": [],
-            "MdZones": 1,
-            "MdPrevZones": 0,
-            "PirTrigger": 2,
-            "z0Intensity": 40,
-            "z0Counter": 320,
-            "z1Intensity": 0,
-            "z1Counter": 0,
-            "z2Intensity": 0,
-            "z2Counter": 0,
-            "z3Intensity": 0,
-            "z3Counter": 0
-    }
+        "Triggered": True,
+        "TriggerLevel": 0,
+        "TriggerRtpTime": 0,
+        "TriggerSysTime": 2857,
+        "zones": [],
+        "MdZones": 1,
+        "MdPrevZones": 0,
+        "PirTrigger": 2,
+        "z0Intensity": 40,
+        "z0Counter": 320,
+        "z1Intensity": 0,
+        "z1Counter": 0,
+        "z2Intensity": 0,
+        "z2Counter": 0,
+        "z3Intensity": 0,
+        "z3Counter": 0,
+    },
 }
 
 # FROM CAMERA - ZONE ALERT?
@@ -170,32 +187,27 @@ ALERT_ZONE = {
     "ID": -1,
     "AlertType": "pirMotionAlert",
     "PIRMotion": {
-            "Triggered": True,
-            "TriggerLevel": 0,
-            "TriggerRtpTime": 0,
-            "TriggerSysTime": 1823,
-            "zones": ["3cfe3b01-944d-422a-9f99-34c130d23299", "b44327ff-c1c4-4208-a890-f1de0c8b5192"],
-            "MdZones": 7,  # Motion Detection Zones?
-            "MdPrevZones": 0,
-            "PirTrigger": 1,
-            "z0Intensity": 100,  # Zone 0 all zones?
-            "z0Counter": 960,
-            "z1Intensity": 100,  # Zone 1
-            "z1Counter": 896,
-            "z2Intensity": 24,  # Zone2 etc
-            "z2Counter": 192,
-            "z3Intensity": 0,
-            "z3Counter": 0
-    }
+        "Triggered": True,
+        "TriggerLevel": 0,
+        "TriggerRtpTime": 0,
+        "TriggerSysTime": 1823,
+        "zones": ["3cfe3b01-944d-422a-9f99-34c130d23299", "b44327ff-c1c4-4208-a890-f1de0c8b5192"],
+        "MdZones": 7,  # Motion Detection Zones?
+        "MdPrevZones": 0,
+        "PirTrigger": 1,
+        "z0Intensity": 100,  # Zone 0 all zones?
+        "z0Counter": 960,
+        "z1Intensity": 100,  # Zone 1
+        "z1Counter": 896,
+        "z2Intensity": 24,  # Zone2 etc
+        "z2Counter": 192,
+        "z3Intensity": 0,
+        "z3Counter": 0,
+    },
 }
 
 # FROM CAMERA
-ALERT_TIMEOUT = {
-    "Type": "alert",
-    "ID": 9,
-    "AlertType": "motionTimeoutAlert",
-    "StreamDuration": 18
-}
+ALERT_TIMEOUT = {"Type": "alert", "ID": 9, "AlertType": "motionTimeoutAlert", "StreamDuration": 18}
 
 # FROM CAMERA
 ALERT_AUDIO = {
@@ -203,44 +215,27 @@ ALERT_AUDIO = {
     "ID": -1,
     "AlertType": "audioAlert",
     "AudioDetect": {
-            "AudioTriggered": True,
-            "AudioTriggerLevel": 2672,
-            "AudioTriggerRtpTime": 0,
-            "AudioTriggerSysTime": 0
-    }
+        "AudioTriggered": True,
+        "AudioTriggerLevel": 2672,
+        "AudioTriggerRtpTime": 0,
+        "AudioTriggerSysTime": 0,
+    },
 }
 
 # FROM CAMERA
-ALERT_AUDIO_TIMEOUT = {
-    "Type": "alert",
-    "ID": -1,
-    "AlertType": "audioTimeoutAlert",
-    "StreamDuration": 10
-}
+ALERT_AUDIO_TIMEOUT = {"Type": "alert", "ID": -1, "AlertType": "audioTimeoutAlert", "StreamDuration": 10}
 
 CAMERA_AUDIO_VOLUME = {
     "Type": "registerSet",
     "ID": -1,
     "SetValues": {
-            "AudioSpkrVolume": 0  # 0 is 85%, 4=100%, -62=0%
-    }
+        "AudioSpkrVolume": 0  # 0 is 85%, 4=100%, -62=0%
+    },
 }
 
-CAMERA_SPEAKER = {
-    "Type": "registerSet",
-    "ID": -1,
-    "SetValues": {
-            "AudioSpkrEnable": False
-    }
-}
+CAMERA_SPEAKER = {"Type": "registerSet", "ID": -1, "SetValues": {"AudioSpkrEnable": False}}
 
-CAMERA_MIC = {
-    "Type": "registerSet",
-    "ID": -1,
-    "SetValues": {
-            "AudioMicEnable": False
-    }
-}
+CAMERA_MIC = {"Type": "registerSet", "ID": -1, "SetValues": {"AudioMicEnable": False}}
 
 STATUS_REQUEST = {"Type": "statusRequest", "ID": 19}
 
@@ -255,7 +250,7 @@ RA_PARAMS_OFF_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 1024000,
-            "cbrbps": 1024000
+            "cbrbps": 1024000,
         },
         "360p": {
             "minbps": 51200,
@@ -264,7 +259,7 @@ RA_PARAMS_OFF_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 409600,
-            "cbrbps": 409600
+            "cbrbps": 409600,
         },
         "480p": {
             "minbps": 51200,
@@ -273,7 +268,7 @@ RA_PARAMS_OFF_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 512000
+            "cbrbps": 512000,
         },
         "720p": {
             "minbps": 51200,
@@ -282,9 +277,9 @@ RA_PARAMS_OFF_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 768000,
-            "cbrbps": 768000
-        }
-    }
+            "cbrbps": 768000,
+        },
+    },
 }
 
 RA_PARAMS_LOW_QUALITY = {
@@ -298,7 +293,7 @@ RA_PARAMS_LOW_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 409600,
-            "cbrbps": 409600
+            "cbrbps": 409600,
         },
         "4K": {
             "minbps": 307200,
@@ -307,7 +302,7 @@ RA_PARAMS_LOW_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 1024000,
-            "cbrbps": 1024000
+            "cbrbps": 1024000,
         },
         "360p": {
             "minbps": 51200,
@@ -316,7 +311,7 @@ RA_PARAMS_LOW_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 102400,
-            "cbrbps": 102400
+            "cbrbps": 102400,
         },
         "480p": {
             "minbps": 51200,
@@ -325,7 +320,7 @@ RA_PARAMS_LOW_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 307200,
-            "cbrbps": 307200
+            "cbrbps": 307200,
         },
         "720p": {
             "minbps": 51200,
@@ -334,9 +329,9 @@ RA_PARAMS_LOW_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 409600,
-            "cbrbps": 409600
-        }
-    }
+            "cbrbps": 409600,
+        },
+    },
 }
 
 RA_PARAMS_MEDIUM_QUALITY = {
@@ -350,7 +345,7 @@ RA_PARAMS_MEDIUM_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 512000
+            "cbrbps": 512000,
         },
         "4K": {
             "minbps": 307200,
@@ -359,7 +354,7 @@ RA_PARAMS_MEDIUM_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 1536000,
-            "cbrbps": 2048000
+            "cbrbps": 2048000,
         },
         "360p": {
             "minbps": 51200,
@@ -368,7 +363,7 @@ RA_PARAMS_MEDIUM_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 204800,
-            "cbrbps": 204800
+            "cbrbps": 204800,
         },
         "480p": {
             "minbps": 51200,
@@ -377,7 +372,7 @@ RA_PARAMS_MEDIUM_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 409600,
-            "cbrbps": 409600
+            "cbrbps": 409600,
         },
         "720p": {
             "minbps": 51200,
@@ -386,9 +381,9 @@ RA_PARAMS_MEDIUM_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 460800,
-            "cbrbps": 460800
-        }
-    }
+            "cbrbps": 460800,
+        },
+    },
 }
 
 RA_PARAMS_HIGH_QUALITY = {
@@ -402,7 +397,7 @@ RA_PARAMS_HIGH_QUALITY = {
             "maxQP": 40,
             "vbr": True,
             "targetbps": 614400,
-            "cbrbps": 614400
+            "cbrbps": 614400,
         },
         "4K": {
             "minbps": 307200,
@@ -411,7 +406,7 @@ RA_PARAMS_HIGH_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 3072000,
-            "cbrbps": 3072000
+            "cbrbps": 3072000,
         },
         "360p": {
             "minbps": 51200,
@@ -420,7 +415,7 @@ RA_PARAMS_HIGH_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 409600,
-            "cbrbps": 409600
+            "cbrbps": 409600,
         },
         "480p": {
             "minbps": 51200,
@@ -429,7 +424,7 @@ RA_PARAMS_HIGH_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 512000
+            "cbrbps": 512000,
         },
         "720p": {
             "minbps": 51200,
@@ -438,9 +433,9 @@ RA_PARAMS_HIGH_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 512000
-        }
-    }
+            "cbrbps": 512000,
+        },
+    },
 }
 
 # Subscription quality is a slightly higher quality observed
@@ -456,7 +451,7 @@ RA_PARAMS_SUBSCRIPTION_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 1024000,
-            "cbrbps": 1024000
+            "cbrbps": 1024000,
         },
         "4K": {
             "minbps": 307200,
@@ -465,7 +460,7 @@ RA_PARAMS_SUBSCRIPTION_QUALITY = {
             "maxQP": 1,
             "vbr": False,
             "targetbps": 10240000,
-            "cbrbps": 10240000
+            "cbrbps": 10240000,
         },
         "360p": {
             "minbps": 51200,
@@ -474,7 +469,7 @@ RA_PARAMS_SUBSCRIPTION_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 409600,
-            "cbrbps": 409600
+            "cbrbps": 409600,
         },
         "480p": {
             "minbps": 51200,
@@ -483,7 +478,7 @@ RA_PARAMS_SUBSCRIPTION_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 512000
+            "cbrbps": 512000,
         },
         "720p": {
             "minbps": 51200,
@@ -492,9 +487,9 @@ RA_PARAMS_SUBSCRIPTION_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 768000,
-            "cbrbps": 768000
-        }
-    }
+            "cbrbps": 768000,
+        },
+    },
 }
 
 # No promises this will work...
@@ -509,7 +504,7 @@ RA_PARAMS_INSANE_QUALITY = {
             "maxQP": 24,
             "vbr": True,
             "targetbps": 2048000,
-            "cbrbps": 2048000
+            "cbrbps": 2048000,
         },
         "4K": {
             "minbps": 614400,
@@ -518,7 +513,7 @@ RA_PARAMS_INSANE_QUALITY = {
             "maxQP": 1,
             "vbr": False,
             "targetbps": 10240000,
-            "cbrbps": 10240000
+            "cbrbps": 10240000,
         },
         "360p": {
             "minbps": 51200,
@@ -527,7 +522,7 @@ RA_PARAMS_INSANE_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 409600,
-            "cbrbps": 409600
+            "cbrbps": 409600,
         },
         "480p": {
             "minbps": 51200,
@@ -536,7 +531,7 @@ RA_PARAMS_INSANE_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 512000
+            "cbrbps": 512000,
         },
         "720p": {
             "minbps": 51200,
@@ -545,9 +540,9 @@ RA_PARAMS_INSANE_QUALITY = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 768000,
-            "cbrbps": 768000
-        }
-    }
+            "cbrbps": 768000,
+        },
+    },
 }
 
 
@@ -557,70 +552,59 @@ RA_PARAMS_INSANE_QUALITY = {
 SNAPSHOT = {
     "Type": "fullSnapshot",
     "ID": -1,
-    "DestinationURL": "http://172.14.1.1/snapshot/YOURSERIAL_d293116d/temp.jpg"
+    "DestinationURL": "http://172.14.1.1/snapshot/YOURSERIAL_d293116d/temp.jpg",
 }
 
 REGISTER_SET_USER_STREAM_ACTIVE = {
     "Type": "registerSet",
     "ID": -1,
     "SetValues": {
-            "UserStreamActive": 0  # 0 Active 1 Disabled
-    }
+        "UserStreamActive": 0  # 0 Active 1 Disabled
+    },
 }
 
 # Generic registerSet
-REGISTER_SET = {
-    "Type": "registerSet",
-    "ID": -1,
-    "SetValues": {}
-}
+REGISTER_SET = {"Type": "registerSet", "ID": -1, "SetValues": {}}
 
 # Enable/Disable motion sensitivity
-REGISTER_SET_PIR = {
-    "Type": "registerSet",
-    "ID": -1,
-    "SetValues": {
-            "PIREnableLED": True,
-            "PIRLEDSensitivity": 80
-    }
-}
+REGISTER_SET_PIR = {"Type": "registerSet", "ID": -1, "SetValues": {"PIREnableLED": True, "PIRLEDSensitivity": 80}}
 
 REGISTER_SET_ARMED = {
     "Type": "registerSet",
     "ID": -1,
     "SetValues": {
-            "PIRTargetState": "Armed",
-            "PIRStartSensitivity": 80,
-            "PIRAction": "Stream",
-            "VideoMotionEstimationEnable": True,
-            "VideoMotionSensitivity": 80,
-            "AudioTargetState": "Disarmed"
-    }
+        "PIRTargetState": "Armed",
+        "PIRStartSensitivity": 80,
+        "PIRAction": "Stream",
+        "VideoMotionEstimationEnable": True,
+        "VideoMotionSensitivity": 80,
+        "AudioTargetState": "Disarmed",
+    },
 }
 
 REGISTER_SET_DISARMED = {
     "Type": "registerSet",
     "ID": -1,
     "SetValues": {
-            "PIRTargetState": "Disarmed",
-            "AudioTargetState": "Disarmed",
-            "VideoMotionEstimationEnable": False,
-            "DefaultMotionStreamTimeLimit": 10
-    }
+        "PIRTargetState": "Disarmed",
+        "AudioTargetState": "Disarmed",
+        "VideoMotionEstimationEnable": False,
+        "DefaultMotionStreamTimeLimit": 10,
+    },
 }
 REGISTER_SET_ARM_AUDIO = {
     "Type": "registerSet",
     "ID": 12,
     "SetValues": {
-            "PIRTargetState": "Armed",
-            "PIRStartSensitivity": 80,
-            "PIRAction": "Stream",
-            "AudioTargetState": "Armed",
-            "AudioStartSensitivity": 2,
-            "AudioAction": "Stream",
-            "VideoMotionEstimationEnable": True,
-            "VideoMotionSensitivity": 80
-    }
+        "PIRTargetState": "Armed",
+        "PIRStartSensitivity": 80,
+        "PIRAction": "Stream",
+        "AudioTargetState": "Armed",
+        "AudioStartSensitivity": 2,
+        "AudioAction": "Stream",
+        "VideoMotionEstimationEnable": True,
+        "VideoMotionSensitivity": 80,
+    },
 }
 
 REGISTER_SET_LOW_QUALITY = {
@@ -631,7 +615,7 @@ REGISTER_SET_LOW_QUALITY = {
         "VideoTargetBitrate": 400,
         "HEVCVideoOutputResolution": "2160p",
         "HEVCVideoTargetBitrate": 1000,
-    }
+    },
 }
 
 REGISTER_SET_MEDIUM_QUALITY = {
@@ -642,7 +626,7 @@ REGISTER_SET_MEDIUM_QUALITY = {
         "VideoTargetBitrate": 600,
         "HEVCVideoOutputResolution": "2160p",
         "HEVCVideoTargetBitrate": 1500,
-    }
+    },
 }
 
 REGISTER_SET_HIGH_QUALITY = {
@@ -653,7 +637,7 @@ REGISTER_SET_HIGH_QUALITY = {
         "VideoTargetBitrate": 1250,
         "HEVCVideoOutputResolution": "2160p",
         "HEVCVideoTargetBitrate": 3000,
-    }
+    },
 }
 
 REGISTER_SET_SUBSCRIPTION_QUALITY = {
@@ -664,7 +648,7 @@ REGISTER_SET_SUBSCRIPTION_QUALITY = {
         "VideoTargetBitrate": 1250,
         "HEVCVideoOutputResolution": "2160p",
         "HEVCVideoTargetBitrate": 6000,
-    }
+    },
 }
 
 # No promises this will work...
@@ -676,7 +660,7 @@ REGISTER_SET_INSANE_QUALITY = {
         "VideoTargetBitrate": 2000,
         "HEVCVideoOutputResolution": "2160p",
         "HEVCVideoTargetBitrate": 8000,
-    }
+    },
 }
 
 REGISTER_SET_INITIAL = {
@@ -713,8 +697,8 @@ REGISTER_SET_INITIAL = {
         "PIRTargetState": "Disarmed",
         "AudioTargetState": "Disarmed",
         "VideoMotionEstimationEnable": False,
-        "DefaultMotionStreamTimeLimit": 10
-    }
+        "DefaultMotionStreamTimeLimit": 10,
+    },
 }
 
 # Register set specific to the Arlo Ultra
@@ -728,19 +712,19 @@ REGISTER_SET_INITIAL_ULTRA = {
         "Audio1EncodeFormat": 1,
         "AudioMicAGC": 0,  # automatic gain control
         "AudioMicVolume": 4,
-        "AudioMicWNS": 0,   # reduce wind noise
+        "AudioMicWNS": 0,  # reduce wind noise
         "AudioSpkrEnable": True,
         "AudioTargetState": "Disarmed",
         "ChargeNotificationLed": 1,  # LED when charged
         "DefaultMotionStreamTimeLimit": 28,
-        "DuskToDawnThrshVal": 26, # Dusk to Dawn Sensor setting; unclear what the range is
+        "DuskToDawnThrshVal": 26,  # Dusk to Dawn Sensor setting; unclear what the range is
         "CvrModeEnabled": False,
         "EpochBsTime": 1610925182,
-        "HdrControl": "auto",    # auto HDR enabled
+        "HdrControl": "auto",  # auto HDR enabled
         "HEVCVideoOutputResolution": "2160p",
         "HEVCVideoTargetBitrate": 3000,
         "IRCutState": "engaged",  # color night vision
-        "IRLedState": "off",     # ??
+        "IRLedState": "off",  # ??
         "JPEGOutputResolution": "",
         "MaxMissedBeaconTime": 30,
         "MaxMotionStreamTimeLimit": 120,
@@ -749,15 +733,19 @@ REGISTER_SET_INITIAL_ULTRA = {
         "MaxUserStreamTimeLimit": 1800,
         "NightModeGrey": 0,  # ??
         "NightModeLightSourceAlert": 1,  # enable (1)/disable (0) spotlight at night
-        "NightVisionMode": True, # night vision enabled
-        "PIRAction": "Stream+Spotlight", # turn on floodlight with motion
+        "NightVisionMode": True,  # night vision enabled
+        "PIRAction": "Stream+Spotlight",  # turn on floodlight with motion
         "PIRStartSensitivity": 95,
         "PIRTargetState": "Armed",
-        "SpotlightDurationManual": 300, # floodlight duration when manually activated
-        "SpotlightIntensityAlert": 12593, # floodlight brightness when motion detected, 25700 == 100%
-        "SpotlightIntensityManual": 12593, # floodlight brightness when manually activated, 25700 == 100%
-        "SpotlightModeAlert": 0, # floodlight behavior when motion detected: (0) Constant , (1) Flash, (2) Pulsate if the same as spotlight cam (unclear if (1) Flash is supported)
-        "SpotlightModeManual": 0, # floodlight behavior when manually activated: (0) Constant, (2) Pulsate if the same as spotlight cam (unclear if (1) Flash is supported)
+        "SpotlightDurationManual": 300,  # floodlight duration when manually activated
+        "SpotlightIntensityAlert": 12593,  # floodlight brightness when motion detected, 25700 == 100%
+        "SpotlightIntensityManual": 12593,  # floodlight brightness when manually activated, 25700 == 100%
+        # Floodlight behavior when motion is detected: (0) Constant, (1) Flash, (2) Pulsate.
+        # It is unclear whether (1) Flash is supported.
+        "SpotlightModeAlert": 0,
+        # Floodlight behavior when manually activated: (0) Constant, (2) Pulsate.
+        # It is unclear whether (1) Flash is supported.
+        "SpotlightModeManual": 0,
         "VideoAntiFlickerRate": 60,  # hz
         "VideoExposureCompensation": 0,
         "VideoFlip": False,
@@ -770,8 +758,8 @@ REGISTER_SET_INITIAL_ULTRA = {
         "VideoWindowEndY": 720,
         "VideoWindowStartX": 0,
         "VideoWindowStartY": 0,
-        "WifiCountryCode": "US"
-    }
+        "WifiCountryCode": "US",
+    },
 }
 
 REGISTER_SET_INITIAL_SUBSCRIPTION = {
@@ -807,20 +795,20 @@ REGISTER_SET_INITIAL_SUBSCRIPTION = {
         "VideoWindowStartX": 0,
         "VideoWindowStartY": 0,
         "WifiCountryCode": "US",
-    }
+    },
 }
 
 REGISTER_SET_INITIAL_VID_DOORBELL = {
     "Type": "registerSet",
     "ID": -1,
     "SetValues": {
-        "CallEnableLED": True, # LED on Call Accepted
-        "LEDPirStatus": True, # Breathe LED on Motion Detection
+        "CallEnableLED": True,  # LED on Call Accepted
+        "LEDPirStatus": True,  # Breathe LED on Motion Detection
         "SilentMode": False,
-        "StreamingLedEnabled": True, # LED on Live Streaming & Recording
+        "StreamingLedEnabled": True,  # LED on Live Streaming & Recording
         "TradChimePlayDur": 0,
-        "TraditionalChime": False
-    }
+        "TraditionalChime": False,
+    },
 }
 
 REGISTER_SET_INITIAL_2_VID_DOORBELL = {
@@ -851,8 +839,8 @@ REGISTER_SET_INITIAL_2_VID_DOORBELL = {
         "VideoWindowEndY": 1536,
         "VideoWindowStartX": 0,
         "VideoWindowStartY": 0,
-        "WifiCountryCode": "US"
-    }
+        "WifiCountryCode": "US",
+    },
 }
 
 RA_PARAMS_VID_DOORBELL = {
@@ -866,7 +854,7 @@ RA_PARAMS_VID_DOORBELL = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 768000,
-            "cbrbps": 768000
+            "cbrbps": 768000,
         },
         "1536sq": {
             "minbps": 102400,
@@ -875,7 +863,7 @@ RA_PARAMS_VID_DOORBELL = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 1024000,
-            "cbrbps": 1024000
+            "cbrbps": 1024000,
         },
         "720sq": {
             "minbps": 51200,
@@ -884,9 +872,9 @@ RA_PARAMS_VID_DOORBELL = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 512000
-        }
-    }
+            "cbrbps": 512000,
+        },
+    },
 }
 
 RA_PARAMS_VID_DOORBELL_INSANE = {
@@ -900,7 +888,7 @@ RA_PARAMS_VID_DOORBELL_INSANE = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 768000,
-            "cbrbps": 768000
+            "cbrbps": 768000,
         },
         "1536sq": {
             "minbps": 204800,
@@ -909,7 +897,7 @@ RA_PARAMS_VID_DOORBELL_INSANE = {
             "maxQP": 24,
             "vbr": True,
             "targetbps": 1792000,
-            "cbrbps": 1792000
+            "cbrbps": 1792000,
         },
         "720sq": {
             "minbps": 51200,
@@ -918,9 +906,9 @@ RA_PARAMS_VID_DOORBELL_INSANE = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 512000
-        }
-    }
+            "cbrbps": 512000,
+        },
+    },
 }
 
 REGISTER_SET_720SQ = {
@@ -929,7 +917,7 @@ REGISTER_SET_720SQ = {
     "SetValues": {
         "VideoOutputResolution": "720sq",
         "VideoTargetBitrate": 400,
-    }
+    },
 }
 
 REGISTER_SET_1080SQ = {
@@ -938,7 +926,7 @@ REGISTER_SET_1080SQ = {
     "SetValues": {
         "VideoOutputResolution": "1080sq",
         "VideoTargetBitrate": 500,
-    }
+    },
 }
 
 REGISTER_SET_1536SQ = {
@@ -947,7 +935,7 @@ REGISTER_SET_1536SQ = {
     "SetValues": {
         "VideoOutputResolution": "1536sq",
         "VideoTargetBitrate": 750,
-    }
+    },
 }
 
 REGISTER_SET_1536SQ_INSANE = {
@@ -956,7 +944,7 @@ REGISTER_SET_1536SQ_INSANE = {
     "SetValues": {
         "VideoOutputResolution": "1536sq",
         "VideoTargetBitrate": 1500,  # 750 originally
-    }
+    },
 }
 
 REGISTER_SET_TURNED_OFF = {
@@ -989,15 +977,11 @@ REGISTER_SET_TURNED_OFF = {
         "Audio0EncodeFormat": 0,
         "Audio1EncodeFormat": 1,
         "ArloSmart": True,
-        "AlertBackoffTime": 0
-    }
+        "AlertBackoffTime": 0,
+    },
 }
 
-RESPONSE = {
-    "Type": "response",
-    "ID": -1,
-    "Response": "Ack"
-}
+RESPONSE = {"Type": "response", "ID": -1, "Response": "Ack"}
 
 ACTIVITY_ZONE = {
     "Type": "motionZone",
@@ -1006,10 +990,15 @@ ACTIVITY_ZONE = {
         {
             "name": "Zone 2",
             "id": "5461bdfe-ab83-4b58-8325-848dd2c30dda",
-            "coords": [{"x": 0.264449, "y": 0.3}, {"x": 0.864449, "y": 0.3}, {"x": 0.864449, "y": 1}, {"x": 0.264449, "y": 1}],
-            "color": 41210
+            "coords": [
+                {"x": 0.264449, "y": 0.3},
+                {"x": 0.864449, "y": 0.3},
+                {"x": 0.864449, "y": 1},
+                {"x": 0.264449, "y": 1},
+            ],
+            "color": 41210,
         }
-    ]
+    ],
 }
 ACTIVITY_ZONE_ALL = {
     "Type": "motionZone",
@@ -1019,28 +1008,24 @@ ACTIVITY_ZONE_ALL = {
             "name": "Zone 3",
             "id": "2d10c7b1-72c7-4a42-8500-f75dbbbc860d",
             "coords": [{"x": 0.1, "y": 0.1}, {"x": 0.7, "y": 0.1}, {"x": 0.7, "y": 0.8}, {"x": 0.1, "y": 0.8}],
-            "color": 15790130
+            "color": 15790130,
         },
         {
             "name": "Zone 2",
             "id": "4a9b190b-eae2-49eb-93f8-3e924f13a179",
             "coords": [{"x": 0.1, "y": 0.1}, {"x": 0.7, "y": 0.1}, {"x": 0.7, "y": 0.8}, {"x": 0.1, "y": 0.8}],
-            "color": 41210
+            "color": 41210,
         },
         {
             "name": "Zone 1",
             "id": "e8c8412d-5700-4567-9709-84c8b6bcd893",
             "coords": [{"x": 0.1, "y": 0.1}, {"x": 0.7, "y": 0.1}, {"x": 0.7, "y": 0.8}, {"x": 0.1, "y": 0.8}],
-            "color": 8524960
-        }
-    ]
+            "color": 8524960,
+        },
+    ],
 }
 
-ACTIVITY_ZONE_DELETE = {
-    "Type": "motionZone",
-    "ID": -1,
-    "intrZone": []
-}
+ACTIVITY_ZONE_DELETE = {"Type": "motionZone", "ID": -1, "intrZone": []}
 
 # FROM DOORBELL
 AUDIO_DOORBELL_STATUS = {
@@ -1062,7 +1047,7 @@ AUDIO_DOORBELL_STATUS = {
     "Type": "status",
     "WifiConnectionAttempts": 1,
     "WifiConnectionCount": 1,
-    "WifiCountryRegion": 5
+    "WifiCountryRegion": 5,
 }
 
 # FROM DOORBELL
@@ -1070,13 +1055,7 @@ AUDIO_DOORBELL_REGISTRATION = {
     "BCC": "64_CHAR_HEXADECIMAL_STRING",  # what is this?
     "BatPercent": 86,
     "BatTech": "Primary",
-    "Capabilities": [
-        "BatteryLevel",
-        "SignalStrength",
-        "Microphone",
-        "Speaker",
-        "PirMotion"
-    ],
+    "Capabilities": ["BatteryLevel", "SignalStrength", "Microphone", "Speaker", "PirMotion"],
     "CommProtocolVersion": 1,
     "HardwareRevision": "1.4",
     "ID": 31580,
@@ -1089,17 +1068,14 @@ AUDIO_DOORBELL_REGISTRATION = {
     "SystemFirmwareVersion": "1.2.0.0_320_401",
     "SystemModelNumber": "AAD1001",
     "SystemSerialNumber": "YOURSERIAL",
-    "Type": "registration"
+    "Type": "registration",
 }
 
 # TO DOORBELL
 AUDIO_DOORBELL_INITIAL_REGISTER_SET = {
     "Type": "registerSet",
     "ID": 2,
-    "SetValues": {
-        "PIRTargetState": "Armed",
-        "PIRStartSensitivity": 30
-    }
+    "SetValues": {"PIRTargetState": "Armed", "PIRStartSensitivity": 30},
 }
 
 # TO DOORBELL
@@ -1118,7 +1094,7 @@ AUDIO_DOORBELL_SECOND_REGISTER_SET = {
         "LEDStatus": True,
         "TraditionalChime": False,
         "SilentMode": False,
-    }
+    },
 }
 
 # FROM DOORBELL 849
@@ -1127,32 +1103,20 @@ AUDIO_DOORBELL_BUTTON_PRESS = {
     "ID": 31607,
     "SystemSerialNumber": "YOURSERIAL",
     "AlertType": "buttonPressAlert",
-    "ButtonPress": {
-        "Triggered": True
-    }
+    "ButtonPress": {"Triggered": True},
 }
 
 # 864 RST
 
 # TO DOORBELL 873
-AUDIO_DOORBELL_END_OF_CALL = {
-    "Type": "rtpBye",
-    "ID": 48,
-    "Streams": [1],
-    "EndOfCall": True
-}
+AUDIO_DOORBELL_END_OF_CALL = {"Type": "rtpBye", "ID": 48, "Streams": [1], "EndOfCall": True}
 
 # TO DOORBELL
 AUDIO_DOORBELL_RTP_INVITE = {
     "Type": "rtpInvite",
     "ID": 59,
-    "AudioStream": {
-        "PayloadType": 97,
-        "PayloadTypeString": "OPUS",
-        "Bitrate": 32000,
-        "ID": 2
-    },
-    "buttonPressed": True
+    "AudioStream": {"PayloadType": 97, "PayloadTypeString": "OPUS", "Bitrate": 32000, "ID": 2},
+    "buttonPressed": True,
 }
 
 # FROM DOORBELL
@@ -1166,8 +1130,8 @@ AUDIO_DOORBELL_RTP_RESPONSE = {
         "PayloadTypeString": "OPUS",
         "Bitrate": 32000,
         "Port": 8000,  # send audio to doorbell here
-        "ID": 2
-    }
+        "ID": 2,
+    },
 }
 
 # TO DOORBELL
@@ -1178,8 +1142,8 @@ AUDIO_DOORBELL_RTP_REQUEST = {
         "PayloadType": 97,
         "PayloadTypeString": "OPUS",
         "Port": 53046,  # audio from doorbell gets sent here
-        "ID": 3
-    }
+        "ID": 3,
+    },
 }
 
 # FROM DOORBELL
@@ -1193,30 +1157,15 @@ AUDIO_DOORBELL_RTP_RESPONSE_2 = {
         "PayloadTypeString": "OPUS",
         "Bitrate": 32000,
         "Port": 8000,  # send audio to doorbell here
-        "ID": 3
-    }
+        "ID": 3,
+    },
 }
 
-AUDIO_DOORBELL_END_OF_CALL_1 = {
-    "Type": "rtpBye",
-    "ID": 61,
-    "Streams": [3, 2],
-    "EndOfCall": True
-}
+AUDIO_DOORBELL_END_OF_CALL_1 = {"Type": "rtpBye", "ID": 61, "Streams": [3, 2], "EndOfCall": True}
 
-AUDIO_DOORBELL_END_OF_CALL = {
-    "Type": "rtpBye",
-    "ID": 62,
-    "Streams": [3],
-    "EndOfCall": False
-}
+AUDIO_DOORBELL_END_OF_CALL = {"Type": "rtpBye", "ID": 62, "Streams": [3], "EndOfCall": False}
 
-AUDIO_DOORBELL_END_OF_CALL = {
-    "Type": "rtpBye",
-    "ID": 62,
-    "Streams": [2],
-    "EndOfCall": False
-}
+AUDIO_DOORBELL_END_OF_CALL = {"Type": "rtpBye", "ID": 62, "Streams": [2], "EndOfCall": False}
 
 REGISTER_SET_INITIAL_FLOODLIGHT = {
     "Type": "registerSet",
@@ -1234,7 +1183,7 @@ REGISTER_SET_INITIAL_FLOODLIGHT = {
         "ChargeNotificationLed": 1,
         "CvrModeEnabled": False,
         "DefaultMotionStreamTimeLimit": 28,
-        "DuskToDawnThrshVal": 26, # Dusk to Dawn Sensor setting; unclear what the range is
+        "DuskToDawnThrshVal": 26,  # Dusk to Dawn Sensor setting; unclear what the range is
         "EpochBsTime": 1679206967,
         "HdrControl": "auto",
         "HEVCVideoOutputResolution": "1440p",
@@ -1247,14 +1196,18 @@ REGISTER_SET_INITIAL_FLOODLIGHT = {
         "MaxUserStreamTimeLimit": 1800,
         "NightModeLightSourceAlert": 1,
         "NightVisionMode": True,
-        "PIRAction": "Stream+Spotlight", # turn on floodlight with motion
+        "PIRAction": "Stream+Spotlight",  # turn on floodlight with motion
         "PIRStartSensitivity": 95,
         "PIRTargetState": "Armed",
-        "SpotlightDurationManual": 300, # floodlight duration when manually activated
-        "SpotlightIntensityAlert": 12593, # floodlight brightness when motion detected, 25700 == 100%
-        "SpotlightIntensityManual": 12593, # floodlight brightness when manually activated, 25700 == 100%
-        "SpotlightModeAlert": 0, # floodlight behavior when motion detected: (0) Constant , (1) Flash, (2) Pulsate if the same as spotlight cam (unclear if (1) Flash is supported)
-        "SpotlightModeManual": 0, # floodlight behavior when manually activated: (0) Constant, (2) Pulsate if the same as spotlight cam (unclear if (1) Flash is supported)
+        "SpotlightDurationManual": 300,  # floodlight duration when manually activated
+        "SpotlightIntensityAlert": 12593,  # floodlight brightness when motion detected, 25700 == 100%
+        "SpotlightIntensityManual": 12593,  # floodlight brightness when manually activated, 25700 == 100%
+        # Floodlight behavior when motion is detected: (0) Constant, (1) Flash, (2) Pulsate.
+        # It is unclear whether (1) Flash is supported.
+        "SpotlightModeAlert": 0,
+        # Floodlight behavior when manually activated: (0) Constant, (2) Pulsate.
+        # It is unclear whether (1) Flash is supported.
+        "SpotlightModeManual": 0,
         "VideoAntiFlickerRate": 60,
         "VideoExposureCompensation": 0,
         "VideoFlip": False,
@@ -1268,8 +1221,8 @@ REGISTER_SET_INITIAL_FLOODLIGHT = {
         "VideoWindowEndY": 720,
         "VideoWindowStartX": 0,
         "VideoWindowStartY": 0,
-        "WifiCountryCode": "US"
-    }
+        "WifiCountryCode": "US",
+    },
 }
 
 RA_PARAMS_FLOODLIGHT = {
@@ -1283,7 +1236,7 @@ RA_PARAMS_FLOODLIGHT = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 768000,
-            "cbrbps": 768000
+            "cbrbps": 768000,
         },
         "2K": {
             "minbps": 307200,
@@ -1292,7 +1245,7 @@ RA_PARAMS_FLOODLIGHT = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 1024000,
-            "cbrbps": 1024000
+            "cbrbps": 1024000,
         },
         "720p": {
             "minbps": 51200,
@@ -1301,9 +1254,9 @@ RA_PARAMS_FLOODLIGHT = {
             "maxQP": 38,
             "vbr": True,
             "targetbps": 512000,
-            "cbrbps": 614400
-        }
-    }
+            "cbrbps": 614400,
+        },
+    },
 }
 
 REGISTER_SET_LOW_QUALITY_FLOODLIGHT = {
@@ -1314,7 +1267,7 @@ REGISTER_SET_LOW_QUALITY_FLOODLIGHT = {
         "VideoTargetBitrate": 400,
         "HEVCVideoOutputResolution": "1440p",
         "HEVCVideoTargetBitrate": 1000,
-    }
+    },
 }
 
 REGISTER_SET_MEDIUM_QUALITY_FLOODLIGHT = {
@@ -1325,7 +1278,7 @@ REGISTER_SET_MEDIUM_QUALITY_FLOODLIGHT = {
         "VideoTargetBitrate": 500,
         "HEVCVideoOutputResolution": "1440p",
         "HEVCVideoTargetBitrate": 1000,
-    }
+    },
 }
 
 REGISTER_SET_HIGH_QUALITY_FLOODLIGHT = {
@@ -1336,5 +1289,5 @@ REGISTER_SET_HIGH_QUALITY_FLOODLIGHT = {
         "VideoTargetBitrate": 750,
         "HEVCVideoOutputResolution": "1440p",
         "HEVCVideoTargetBitrate": 1000,
-    }
+    },
 }

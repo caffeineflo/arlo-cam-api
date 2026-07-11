@@ -1,6 +1,6 @@
 services:
   arlo-cam-api:
-    image: ghcr.io/caffeineflo/arlo-cam-api:latest
+    image: ${ARLO_CAM_API_IMAGE:-ghcr.io/caffeineflo/arlo-cam-api:latest}
     container_name: arlo-cam-api
     ports:
       - "4000:4000"
@@ -9,10 +9,13 @@ services:
       - web
       - default
     volumes:
-      - ./config.yaml:/app/config.yaml:ro
-      - data:/data
+      - /dockerfs/arlocam/config.yaml:/app/config.yaml:ro
+      - /dockerfs/arlocam/v2-data:/data
+    env_file:
+      - /dockerfs/arlocam/go2rtc.env
     environment:
       GO2RTC_API_URL: "http://arlo-go2rtc:1984"
+      GO2RTC_REQUIRE_API_AUTH: "true"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.arlocam.rule=Host(`arlocam.iflorian.com`)"
@@ -23,30 +26,38 @@ services:
       - "traefik.http.routers.arlocam.service=arlocam"
       - "traefik.http.services.arlocam.loadbalancer.server.port=5000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
 
   go2rtc:
-    image: alexxit/go2rtc:latest
+    image: alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae
     container_name: arlo-go2rtc
     depends_on:
-      - arlo-cam-api
+      arlo-cam-api:
+        condition: service_healthy
+    ports:
+      - "192.168.40.11:8554:8554"
     networks:
       - web
       - default
-    ports:
-      - "8554:8554"
     environment:
       ARLO_API_URL: "http://arlo-cam-api:5000"
     volumes:
-      - data:/data:ro
-      - ./stream_helper.sh:/app/stream_helper.sh:ro
+      - /dockerfs/arlocam/v2-data:/data:ro
+      - /dockerfs/stacks/arlocam/stream_helper.sh:/app/stream_helper.sh:ro
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.arlocam-go2rtc.rule=Host(`arlocam-go2rtc.iflorian.com`)"
+      - "traefik.http.routers.arlocam-go2rtc.rule=Host(`arlocam.iflorian.com`) && PathPrefix(`/go2rtc/`)"
       - "traefik.http.routers.arlocam-go2rtc.entrypoints=https"
       - "traefik.http.routers.arlocam-go2rtc.tls=true"
       - "traefik.http.routers.arlocam-go2rtc.tls.certresolver=letsEncrypt"
-      - "traefik.http.routers.arlocam-go2rtc.middlewares=chain-local-only@file"
+      - "traefik.http.routers.arlocam-go2rtc.priority=100"
+      - "traefik.http.routers.arlocam-go2rtc.middlewares=chain-local-only@file,arlocam-go2rtc-strip"
       - "traefik.http.routers.arlocam-go2rtc.service=arlocam-go2rtc"
+      - "traefik.http.middlewares.arlocam-go2rtc-strip.stripprefix.prefixes=/go2rtc"
       - "traefik.http.services.arlocam-go2rtc.loadbalancer.server.port=1984"
     command: ["go2rtc", "-config", "/data/go2rtc.yaml"]
     restart: unless-stopped
@@ -54,11 +65,3 @@ services:
 networks:
   web:
     external: true
-
-volumes:
-  data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: /dockerfs/arlocam/v2-data

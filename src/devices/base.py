@@ -52,7 +52,11 @@ class Device:
             try:
                 await write_message(writer, message)
                 response = await asyncio.wait_for(read_message(reader), timeout=5.0)
-                log.debug("message_sent", msg_type=message.get("Type"), response_type=response.get("Type") if response else None)
+                log.debug(
+                    "message_sent",
+                    msg_type=message.get("Type"),
+                    response_type=response.get("Type") if response else None,
+                )
                 return response
             except (OSError, asyncio.TimeoutError, json.JSONDecodeError) as e:
                 log.warning("send_failed", error=str(e))

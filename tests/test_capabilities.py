@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from src.devices.capabilities import (
     BASE_CAMERA_KEYS,
-    ULTRA_EXTRA_KEYS,
     filter_register_set,
     get_supported_keys,
 )
@@ -16,6 +15,7 @@ def test_vmc3030_gets_base_keys_only():
     assert "VideoOutputResolution" in keys
     assert "ArloSmart" not in keys
     assert "HdrControl" not in keys
+    assert "UserStreamActive" not in keys
 
 
 def test_vmc5040_gets_ultra_keys():

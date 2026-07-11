@@ -52,6 +52,8 @@ class DeviceRegistry:
             friendly_name = row.get("friendly_name", serial)
             device = create_device(serial, ip, hostname, model, registration)
             device.friendly_name = friendly_name
+            device.status = row.get("status")
+            device.last_seen = row.get("last_seen") or 0
             self._devices[serial] = device
         if rows:
             logger.info("registry_restored", count=len(rows))

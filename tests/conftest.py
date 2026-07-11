@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
-import tempfile
-
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
@@ -15,7 +12,6 @@ from src.config import Settings
 from src.devices.camera import Camera
 from src.devices.registry import DeviceRegistry
 from src.state.database import Database
-from src.webhooks.manager import WebhookManager
 
 
 @pytest.fixture

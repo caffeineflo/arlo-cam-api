@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -16,6 +19,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ".[dev]"
+      - run: ruff check .
       - run: pytest tests/ -v
 
   build:

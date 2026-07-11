@@ -1,17 +1,15 @@
-import socket
-import sys
 import copy
+import socket
 import time
+from abc import ABC, abstractmethod, abstractproperty
 
-from abc import ABC, abstractproperty, abstractmethod
+import arlo.messages
 from arlo.messages import Message
 from arlo.socket import ArloSocket
-import arlo.messages
 from helpers.safe_print import s_print
 
 
 class Device(ABC):
-
     @abstractproperty
     def port(self):
         pass
@@ -24,71 +22,63 @@ class Device(ABC):
         self.hostname = f"{registration['SystemModelNumber']}-{self.serial_number[-5:]}"
         self.status = {}
         self.friendly_name = self.serial_number
-        self.model_number = registration['SystemModelNumber']
+        self.model_number = registration["SystemModelNumber"]
 
     def __getitem__(self, key):
         return self.registration[key]
 
     def send_message(self, message: Message, port=None):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-
             sock.settimeout(5.0)
             try:
                 sock.connect((self.ip, port or self.port))
-            except OSError as msg:
-                print('Connection to camera failed: {msg}')
+            except OSError as exc:
+                print(f"Connection to camera failed: {exc}")
                 return False
 
             result = False
             try:
-                arloSock = ArloSocket(sock)
+                arlo_socket = ArloSocket(sock)
                 self.id += 1
-                message['ID'] = self.id
-                s_print(f">[{self.ip}][{self.id}] {message.toNetworkMessage()}")
-                arloSock.send(message)
-                ack = arloSock.receive()
-                if (ack != None):
-                    if (ack['ID'] == message['ID']):
-                        s_print(f"<[{self.ip}][{self.id}] {ack.toNetworkMessage()}")
-                        if ('Response' in ack and ack['Response'] != "Ack"):
+                message["ID"] = self.id
+                s_print(f">[{self.ip}][{self.id}] {message.to_network_message()}")
+                arlo_socket.send(message)
+                ack = arlo_socket.receive()
+                if ack is not None:
+                    if ack["ID"] == message["ID"]:
+                        s_print(f"<[{self.ip}][{self.id}] {ack.to_network_message()}")
+                        if "Response" in ack and ack["Response"] != "Ack":
                             result = False
                         else:
                             result = True
-            except:
-                print(f'Exception: {sys.exc_info()}')
-            finally:
-                return result
+            except Exception as exc:
+                print(f"Failed to send Arlo message to {self.ip}:{port or self.port}: {exc}")
+            return result
 
     @abstractmethod
-    def send_initial_register_set(self, wifi_country_code, video_anti_flicker_rate=None):
-        ...
+    def send_initial_register_set(self, wifi_country_code, video_anti_flicker_rate=None): ...
 
     def status_request(self):
         _status_request = Message(copy.deepcopy(arlo.messages.STATUS_REQUEST))
         return self.send_message(_status_request)
 
-    def arm(self, args):
-        ...
+    def arm(self, args): ...
 
     def mic_request(self, enabled):
         register_set = Message(copy.deepcopy(arlo.messages.REGISTER_SET))
-        set_values = {
-            'AudioMicEnable': enabled
-        }
-        register_set['AudioMicEnable'] = set_values
+        set_values = {"AudioMicEnable": enabled}
+        register_set["AudioMicEnable"] = set_values
         return self.send_message(register_set)
 
     def speaker_request(self, enabled):
         register_set = Message(copy.deepcopy(arlo.messages.REGISTER_SET))
-        set_values = {
-            'AudioSpkrEnable': enabled
-        }
-        register_set['SetValues'] = set_values
+        set_values = {"AudioSpkrEnable": enabled}
+        register_set["SetValues"] = set_values
         return self.send_message(register_set)
 
     def register_set(self, set_values):
         register_set = copy.deepcopy(arlo.messages.REGISTER_SET)
-        register_set['SetValues'] = set_values
+        register_set["SetValues"] = set_values
         register_set_message = Message(register_set)
         return self.send_message(register_set_message)
 
@@ -98,8 +88,6 @@ class Device(ABC):
 
     def send_epoch_bs_time(self):
         register_set = Message(copy.deepcopy(arlo.messages.REGISTER_SET))
-        set_values = {
-            'EpochBsTime': int(time.time())
-        }
-        register_set['SetValues'] = set_values
+        set_values = {"EpochBsTime": int(time.time())}
+        register_set["SetValues"] = set_values
         return self.send_message(register_set)

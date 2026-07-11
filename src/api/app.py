@@ -22,9 +22,9 @@ def create_app() -> FastAPI:
             "Webhook consumers should treat the configured webhook URL as the event contract. "
             "For example, MotionRecordingWebHookUrl receives motion events and the payload "
             "uses serial_number as the stable camera identifier; it does not include alert_type.\n\n"
-            "Battery cameras should stay on-demand: start /device/{serial}/userstreamactive "
-            "before recording and stop it afterwards. Externally powered cameras can use "
-            "MaxUserStreamTimeLimit and MaxStreamTimeLimit values of 86400 for always-on streaming."
+            "Battery cameras should stay on-demand and use per-consumer stream leases. "
+            "Use PUT /power to atomically apply the 180-second battery profile or the "
+            "86400-second external-power profile."
         ),
     )
     app.state.start_time = time.time()
@@ -51,32 +51,34 @@ async def _build_landing_page(request: Request) -> str:
     go2rtc = request.app.state.go2rtc
 
     rtsp_port = settings.go2rtc_rtsp_port if settings.go2rtc_enabled else 8554
-    api_port = settings.go2rtc_api_port if settings.go2rtc_enabled else 1984
 
     from src.devices.camera import Camera
+
     cameras = []
     for device in registry.get_all():
         if not isinstance(device, Camera):
             continue
-        stream_name = go2rtc._stream_name(device) if go2rtc else device.serial_number
-        cameras.append({
-            "serial": device.serial_number,
-            "name": device.friendly_name or device.serial_number,
-            "ip": device.ip,
-            "stream_name": stream_name,
-            "rtsp_url": f"rtsp://{host}:{rtsp_port}/{stream_name}",
-            "streaming": device.is_streaming,
-            "always_on": device.always_on,
-        })
+        stream_name = go2rtc.stream_name(device) if go2rtc else device.serial_number
+        cameras.append(
+            {
+                "serial": device.serial_number,
+                "name": device.friendly_name or device.serial_number,
+                "ip": device.ip,
+                "stream_name": stream_name,
+                "rtsp_url": f"rtsp://{host}:{rtsp_port}/{stream_name}",
+                "streaming": device.is_streaming,
+                "always_on": device.always_on,
+            }
+        )
 
     camera_rows = ""
     ha_streams = ""
     for cam in cameras:
         status = "streaming" if cam["streaming"] else ("always-on" if cam["always_on"] else "on-demand")
         camera_rows += f"""<tr>
-            <td>{cam['name']}</td>
-            <td><code>{cam['serial']}</code></td>
-            <td><code>{cam['rtsp_url']}</code></td>
+            <td>{cam["name"]}</td>
+            <td><code>{cam["serial"]}</code></td>
+            <td><code>{cam["rtsp_url"]}</code></td>
             <td>{status}</td>
         </tr>"""
         ha_streams += f"  {cam['stream_name']}:\n    - {cam['rtsp_url']}\n"
@@ -110,7 +112,6 @@ async def _build_landing_page(request: Request) -> str:
 
     <div class="links">
         <a href="/docs">API Documentation (Swagger)</a>
-        <a href="http://{host}:{api_port}">go2rtc Web UI</a>
         <a href="/streams">Stream JSON</a>
         <a href="/health">Health</a>
     </div>
@@ -124,15 +125,14 @@ async def _build_landing_page(request: Request) -> str:
     <h2>Home Assistant Setup</h2>
     <p>Add to your HA go2rtc configuration:</p>
     <pre>streams:
-{ha_streams if ha_streams else '  # No cameras registered yet'}</pre>
+{ha_streams if ha_streams else "  # No cameras registered yet"}</pre>
     <p>HA's go2rtc integration will auto-create camera entities from these streams.</p>
 
     <h2>Always-On Streaming (USB-Powered Cameras)</h2>
-    <p>For cameras with external power, enable continuous streaming (no wake latency):</p>
-    <pre>curl -X POST http://{host}:5000/device/SERIAL/registerset \\
-  -H "Content-Type: application/json" \\
-  -d '{{"MaxUserStreamTimeLimit": 86400, "MaxStreamTimeLimit": 86400}}'</pre>
-    <p>To revert to on-demand mode, set both values to <code>1800</code>.</p>
+    <p>For cameras with external power, apply the canonical profile in one operation:</p>
+    <pre>curl -X PUT http://{host}:5000/device/SERIAL/power \\
+  -H "Content-Type: application/json" -d '{{"mode": "external"}}'</pre>
+    <p>Undeclared cameras default to battery mode.</p>
 
     <h2>Motion Webhooks</h2>
     <p>
@@ -151,13 +151,13 @@ async def _build_landing_page(request: Request) -> str:
 }}</pre>
 
     <h2>Battery Motion Recording</h2>
-    <p>For battery cameras, wrap recording with stream start and stop calls so the camera can sleep again:</p>
-    <pre>curl -X POST http://{host}:5000/device/SERIAL/userstreamactive \\
-  -H "Content-Type: application/json" -d '{{"active": 1}}'
+    <p>For each battery-camera consumer, acquire and release its own bounded stream lease:</p>
+    <pre>curl -X POST http://{host}:5000/device/SERIAL/stream/leases \\
+  -H "Content-Type: application/json" \\
+  -d '{{"owner": "recorder", "ttl_seconds": 180}}'
 
-# Record from go2rtc, then stop the stream:
-curl -X POST http://{host}:5000/device/SERIAL/userstreamactive \\
-  -H "Content-Type: application/json" -d '{{"active": 0}}'</pre>
+# Record from go2rtc, then release only this consumer's lease:
+curl -X DELETE http://{host}:5000/device/SERIAL/stream/leases/LEASE_ID</pre>
 
     <h2>UniFi Protect / ONVIF</h2>
     <p>

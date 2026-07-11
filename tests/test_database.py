@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
+
+from src.devices import base as device_base_module
+from src.state.database import Database
 
 
 @pytest.mark.asyncio
@@ -61,12 +65,18 @@ async def test_delete_nonexistent(db):
 @pytest.mark.asyncio
 async def test_desired_state_upsert_and_get(db):
     values = {"VideoOutputResolution": "720p", "VideoTargetBitrate": 1250}
-    await db.upsert_desired_state("TEST001", values, quality_preset="high")
+    await db.upsert_desired_state(
+        "TEST001",
+        values,
+        quality_preset="high",
+        power_mode="battery",
+    )
 
     state = await db.get_desired_state("TEST001")
     assert state is not None
     assert json.loads(state["register_set_values"]) == values
     assert state["quality_preset"] == "high"
+    assert state["power_mode"] == "battery"
 
 
 @pytest.mark.asyncio
@@ -95,3 +105,68 @@ async def test_get_all_devices(db):
     assert len(devices) == 2
     serials = {d["serial_number"] for d in devices}
     assert serials == {"CAM1", "CAM2"}
+
+
+@pytest.mark.asyncio
+async def test_delete_device_also_deletes_desired_state(db):
+    await db.upsert_device("TEST001", "10.0.0.1", "host", "name")
+    await db.upsert_desired_state("TEST001", {}, power_mode="battery")
+
+    await db.delete_device("TEST001")
+
+    assert await db.get_desired_state("TEST001") is None
+
+
+@pytest.mark.asyncio
+async def test_connect_migrates_existing_desired_state_table(tmp_path):
+    path = tmp_path / "arlo.db"
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """CREATE TABLE devices (
+                serial_number TEXT PRIMARY KEY,
+                ip TEXT,
+                hostname TEXT,
+                friendly_name TEXT,
+                registration TEXT,
+                status TEXT
+            )"""
+        )
+        connection.execute(
+            """CREATE TABLE desired_state (
+                serial_number TEXT PRIMARY KEY,
+                register_set_values TEXT NOT NULL DEFAULT '{}',
+                quality_preset TEXT,
+                updated_at REAL NOT NULL
+            )"""
+        )
+        connection.execute(
+            "INSERT INTO desired_state VALUES (?, ?, ?, ?)",
+            ("TEST001", '{"UserStreamActive": 0, "PIRStartSensitivity": 80}', None, 1.0),
+        )
+
+    database = Database(str(path))
+    await database.connect()
+    state = await database.get_desired_state("TEST001")
+    await database.close()
+
+    assert (
+        "power_mode" in state,
+        json.loads(state["register_set_values"]),
+    ) == (True, {"PIRStartSensitivity": 80})
+
+
+@pytest.mark.asyncio
+async def test_restore_preserves_offline_last_seen(db, registry, monkeypatch):
+    await db.upsert_device(
+        "TEST001",
+        "10.0.0.1",
+        "VMC3030-TEST",
+        "Test Camera",
+        registration={"SystemModelNumber": "VMC3030"},
+        last_seen=100,
+    )
+    monkeypatch.setattr(device_base_module.time, "time", lambda: 1000)
+
+    await registry.restore_from_db(db)
+
+    assert registry.get("TEST001").online is False

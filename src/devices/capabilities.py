@@ -14,7 +14,6 @@ BASE_CAMERA_KEYS: set[str] = {
     "PIRAction",
     "PIRStartSensitivity",
     "PIRTargetState",
-    "UserStreamActive",
     "VideoAntiFlickerRate",
     "VideoExposureCompensation",
     "VideoFlip",
