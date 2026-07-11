@@ -165,10 +165,19 @@ async def test_register_routes_reject_user_stream_active(client, endpoint):
 
 
 @pytest.mark.asyncio
-async def test_battery_profile_rejects_unsafe_stream_limit(client):
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("MaxUserStreamTimeLimit", 31),
+        ("MaxStreamTimeLimit", 181),
+        ("DefaultMotionStreamTimeLimit", 31),
+        ("MaxMotionStreamTimeLimit", 31),
+    ],
+)
+async def test_battery_profile_rejects_unsafe_stream_limit(client, key, value):
     resp = await client.post(
         "/device/4N72777366D7B/registerset",
-        json={"MaxUserStreamTimeLimit": 181},
+        json={key: value},
     )
 
     assert resp.status_code == 400
@@ -208,6 +217,10 @@ def test_default_quality_is_merged_into_initial_camera_config():
     assert (config["VideoOutputResolution"], config["VideoTargetBitrate"]) == (
         "720p",
         400,
+    )
+    assert (config["MaxUserStreamTimeLimit"], config["MaxStreamTimeLimit"]) == (
+        30,
+        180,
     )
 
 
@@ -264,6 +277,29 @@ async def test_power_mode_reports_register_nack(client, sample_camera, monkeypat
     )
 
     assert response.json()["register_command_delivered"] is False
+
+
+@pytest.mark.asyncio
+async def test_battery_power_mode_applies_short_user_and_motion_limits(
+    client,
+    sample_camera,
+    monkeypatch,
+):
+    async def send_message(message):
+        return {"ID": message["ID"], "Response": "Ack"}
+
+    monkeypatch.setattr(sample_camera, "send_message", send_message)
+
+    response = await client.put(
+        "/device/4N72777366D7B/power",
+        json={"mode": "battery"},
+    )
+
+    assert response.json()["stream_limits"] == {
+        "MaxUserStreamTimeLimit": 30,
+        "MaxStreamTimeLimit": 180,
+        "MaxMotionStreamTimeLimit": 30,
+    }
 
 
 @pytest.mark.asyncio

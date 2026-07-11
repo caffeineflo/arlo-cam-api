@@ -35,7 +35,13 @@ def _wait_for_file(path, timeout=6):
     pytest.fail(f"Timed out waiting for {path.name}")
 
 
-def _helper_environment(tmp_path, power_mode, release_failures=0, emit_media=True):
+def _helper_environment(
+    tmp_path,
+    power_mode,
+    release_failures=0,
+    emit_media=True,
+    ffmpeg_lifetime=300,
+):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
     bin_dir = tmp_path / "bin"
@@ -68,6 +74,11 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ "$method" = POST ]; then
+  count=0
+  if [ -f "$TEST_STATE_DIR/acquire_attempts" ]; then
+    read -r count <"$TEST_STATE_DIR/acquire_attempts"
+  fi
+  printf '%s\n' "$((count + 1))" >"$TEST_STATE_DIR/acquire_attempts"
   printf '%s\n' "$url" >"$TEST_STATE_DIR/acquire_url"
   printf '%s\n' "$data" >"$TEST_STATE_DIR/acquire_body"
   printf '{"lease_id":"lease-test","power_mode":"%s","lease_ttl_seconds":5}\n' "$TEST_POWER_MODE"
@@ -113,7 +124,7 @@ if [ "$TEST_EMIT_MEDIA" = 1 ]; then
     count=$((count + 1))
   done
 fi
-sleep 300 &
+sleep "$TEST_FFMPEG_LIFETIME" &
 printf '%s\n' "$!" >>"$TEST_STATE_DIR/ffmpeg_child_pids"
 wait
 """,
@@ -127,6 +138,7 @@ wait
             "TEST_POWER_MODE": power_mode,
             "TEST_RELEASE_FAILURES": str(release_failures),
             "TEST_EMIT_MEDIA": "1" if emit_media else "0",
+            "TEST_FFMPEG_LIFETIME": str(ffmpeg_lifetime),
             "ARLO_BATTERY_STREAM_MAX_SECONDS": "5",
             "ARLO_FFMPEG_STOP_GRACE_SECONDS": "0",
             "ARLO_MEDIA_START_TIMEOUT_SECONDS": "2",
@@ -382,6 +394,32 @@ def test_battery_helper_exits_if_no_media_arrives_before_budget(tmp_path):
         (state_dir / "release_url").exists(),
         "did not produce media within 2s" in stderr,
     ) == (1, "", True, True)
+
+
+def test_battery_helper_holds_pipe_after_early_camera_eof(tmp_path):
+    environment, state_dir = _helper_environment(
+        tmp_path,
+        "battery",
+        ffmpeg_lifetime=1,
+    )
+    process = _start_stream_helper(environment)
+
+    try:
+        _wait_for_file(state_dir / "release_url")
+        time.sleep(3)
+        result = {
+            "running_after_early_eof": process.poll() is None,
+            "acquire_attempts": (state_dir / "acquire_attempts").read_text().strip(),
+            "release_attempts": (state_dir / "release_attempts").read_text().strip(),
+        }
+    finally:
+        _, stderr = _stop_stream_helper(process)
+
+    assert result == {
+        "running_after_early_eof": True,
+        "acquire_attempts": "1",
+        "release_attempts": "1",
+    }, stderr
 
 
 def test_external_helper_exits_if_no_media_arrives(tmp_path):

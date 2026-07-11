@@ -10,7 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.devices.camera import (
     ALWAYS_ON_STREAM_LIMIT,
-    BATTERY_SESSION_LIMIT_SECONDS,
+    BATTERY_MOTION_STREAM_LIMIT_SECONDS,
+    BATTERY_STREAM_LIMIT_SECONDS,
+    BATTERY_USER_STREAM_LIMIT_SECONDS,
     Camera,
     StreamLeaseRejectedError,
 )
@@ -21,6 +23,8 @@ router = APIRouter()
 
 LIFECYCLE_OWNED_REGISTER_KEYS = {"UserStreamActive"}
 PROFILE_STREAM_LIMIT_KEYS = {
+    "DefaultMotionStreamTimeLimit",
+    "MaxMotionStreamTimeLimit",
     "MaxUserStreamTimeLimit",
     "MaxStreamTimeLimit",
 }
@@ -103,8 +107,10 @@ def _reject_lifecycle_owned_values(values: dict) -> None:
 
 
 def _validate_stream_profile(power_mode: str, values: dict) -> None:
-    user_limit = values.get("MaxUserStreamTimeLimit", BATTERY_SESSION_LIMIT_SECONDS)
-    stream_limit = values.get("MaxStreamTimeLimit", BATTERY_SESSION_LIMIT_SECONDS)
+    user_limit = values.get("MaxUserStreamTimeLimit", BATTERY_USER_STREAM_LIMIT_SECONDS)
+    stream_limit = values.get("MaxStreamTimeLimit", BATTERY_STREAM_LIMIT_SECONDS)
+    default_motion_limit = values.get("DefaultMotionStreamTimeLimit", 10)
+    motion_limit = values.get("MaxMotionStreamTimeLimit", BATTERY_MOTION_STREAM_LIMIT_SECONDS)
     if power_mode == "external":
         if user_limit != ALWAYS_ON_STREAM_LIMIT or stream_limit != ALWAYS_ON_STREAM_LIMIT:
             raise HTTPException(
@@ -112,10 +118,18 @@ def _validate_stream_profile(power_mode: str, values: dict) -> None:
                 detail="External power requires both stream limits to be 86400; use the power endpoint",
             )
         return
-    if user_limit > BATTERY_SESSION_LIMIT_SECONDS or stream_limit > BATTERY_SESSION_LIMIT_SECONDS:
+    if user_limit > BATTERY_USER_STREAM_LIMIT_SECONDS or stream_limit > BATTERY_STREAM_LIMIT_SECONDS:
         raise HTTPException(
             400,
-            detail="Battery stream limits cannot exceed 180 seconds; use the power endpoint",
+            detail=(
+                "Battery user streams cannot exceed 30 seconds and general streams cannot "
+                "exceed 180 seconds; use the power endpoint"
+            ),
+        )
+    if default_motion_limit > BATTERY_MOTION_STREAM_LIMIT_SECONDS or motion_limit > BATTERY_MOTION_STREAM_LIMIT_SECONDS:
+        raise HTTPException(
+            400,
+            detail="Battery motion streams cannot exceed 30 seconds; use the power endpoint",
         )
 
 
@@ -335,11 +349,17 @@ async def set_power_mode(serial: str, body: PowerModeRequest, request: Request):
     async with device.policy_lock:
         desired = await db.get_desired_state(serial)
         register_values = json.loads(desired.get("register_set_values", "{}")) if desired else {}
-        stream_limit = ALWAYS_ON_STREAM_LIMIT if body.mode == "external" else BATTERY_SESSION_LIMIT_SECONDS
-        profile_values = {
-            "MaxUserStreamTimeLimit": stream_limit,
-            "MaxStreamTimeLimit": stream_limit,
-        }
+        if body.mode == "external":
+            profile_values = {
+                "MaxUserStreamTimeLimit": ALWAYS_ON_STREAM_LIMIT,
+                "MaxStreamTimeLimit": ALWAYS_ON_STREAM_LIMIT,
+            }
+        else:
+            profile_values = {
+                "MaxUserStreamTimeLimit": BATTERY_USER_STREAM_LIMIT_SECONDS,
+                "MaxStreamTimeLimit": BATTERY_STREAM_LIMIT_SECONDS,
+                "MaxMotionStreamTimeLimit": BATTERY_MOTION_STREAM_LIMIT_SECONDS,
+            }
         register_values.update(profile_values)
         await db.upsert_desired_state(serial, register_values, power_mode=body.mode)
         register_result = await device.send_register_set(profile_values)
@@ -429,7 +449,8 @@ async def set_friendly_name(serial: str, request: Request):
     summary="Send and persist camera register values",
     description=(
         "Use this endpoint for settings inside the current power profile. PUT /power is the "
-        "only supported way to transition between the canonical battery limits (180 seconds) "
+        "only supported way to transition between the canonical battery limits (30-second "
+        "user/motion streams and a 180-second general ceiling) "
         "and external-power limits (86400 seconds). Conflicting direct limit changes return 400."
     ),
     openapi_extra={

@@ -24,6 +24,9 @@ from src.messages.templates import (
 
 ALWAYS_ON_STREAM_LIMIT = 86400
 BATTERY_SESSION_LIMIT_SECONDS = 180
+BATTERY_USER_STREAM_LIMIT_SECONDS = 30
+BATTERY_STREAM_LIMIT_SECONDS = 180
+BATTERY_MOTION_STREAM_LIMIT_SECONDS = 30
 BATTERY_COOLDOWN_SECONDS = 30
 LEGACY_LEASE_TTL_SECONDS = 45
 STOP_RETRY_DELAYS_SECONDS = (1.0, 2.0)
@@ -60,12 +63,13 @@ class Camera(Device):
         self._last_stream_result: dict | None = None
         self._stop_reconciliation_task: asyncio.Task | None = None
         self._stream_command_lock = asyncio.Lock()
+        self._stream_command_supported: bool | None = None
         self.policy_lock = asyncio.Lock()
 
         self.power_mode: PowerMode | None = None
         self._stream_limits = {
-            "MaxUserStreamTimeLimit": BATTERY_SESSION_LIMIT_SECONDS,
-            "MaxStreamTimeLimit": BATTERY_SESSION_LIMIT_SECONDS,
+            "MaxUserStreamTimeLimit": BATTERY_USER_STREAM_LIMIT_SECONDS,
+            "MaxStreamTimeLimit": BATTERY_STREAM_LIMIT_SECONDS,
         }
         self._stream_leases: dict[str, StreamLease] = {}
         self._legacy_lease_id: str | None = None
@@ -202,11 +206,13 @@ class Camera(Device):
             self._cancel_stop_reconciliation()
         async with self._stream_command_lock:
             result = await self._send_stream_state_once(active)
-        if not result and not active:
+        if not result and not active and self._stream_command_supported is not False:
             self._ensure_stop_reconciliation()
         return result
 
     async def _send_stream_state_once(self, active: bool) -> bool:
+        if self._stream_command_supported is False:
+            return False
         previous_attempts = 0
         if self._pending_stream_active == active and self._last_stream_result:
             previous_attempts = self._last_stream_result.get("attempts", 0)
@@ -215,22 +221,40 @@ class Camera(Device):
         msg = build_user_stream_active_message(self.next_id, active)
         result = await self.send_message(msg)
         success = self._is_acknowledged(msg, result)
+        unsupported = (
+            isinstance(result, dict)
+            and result.get("Response") == "Ack with Errors"
+            and "Error Handling Register UserStreamActive" in result.get("Errors", [])
+        )
         self._last_stream_result = {
             "requested_active": active,
             "success": success,
             "attempts": previous_attempts + 1,
             "last_attempt_at": attempted_at,
-            "error": None if success else "camera did not acknowledge stream command",
-            "retries_exhausted": False,
+            "error": (
+                None
+                if success
+                else (
+                    "camera does not support UserStreamActive"
+                    if unsupported
+                    else "camera did not acknowledge stream command"
+                )
+            ),
+            "retries_exhausted": unsupported,
         }
 
         if success:
+            self._stream_command_supported = True
             self._pending_stream_active = None
             self._pending_stream_since = None
             self._stream_active = active
             self._stream_started_at = attempted_at if active else None
             if not active:
                 self._cancel_stop_reconciliation()
+        elif unsupported:
+            self._stream_command_supported = False
+            self._pending_stream_active = None
+            self._pending_stream_since = None
         else:
             if self._pending_stream_active != active:
                 self._pending_stream_since = attempted_at
@@ -271,7 +295,7 @@ class Camera(Device):
             if active is None:
                 return None
             result = await self._send_stream_state_once(active)
-        if not result and not active:
+        if not result and not active and self._stream_command_supported is not False:
             self._ensure_stop_reconciliation()
         return result
 
@@ -457,6 +481,7 @@ class Camera(Device):
             "temperature": cached_value("Temperature"),
             "lease_count": self.lease_count,
             "pending_stream_active": self._pending_stream_active,
+            "stream_command_supported": self._stream_command_supported,
             "pending_stream_since": self._pending_stream_since,
             "stream_started_at": self._stream_started_at,
             "session_started_at": self._session_started_at,

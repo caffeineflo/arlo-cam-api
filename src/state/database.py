@@ -47,14 +47,35 @@ class Database:
             await self._db.execute("ALTER TABLE devices ADD COLUMN last_seen REAL NOT NULL DEFAULT 0")
 
     async def _migrate_desired_state(self) -> None:
+        from src.devices.camera import (
+            BATTERY_MOTION_STREAM_LIMIT_SECONDS,
+            BATTERY_STREAM_LIMIT_SECONDS,
+            BATTERY_USER_STREAM_LIMIT_SECONDS,
+        )
+
         cursor = await self._db.execute("PRAGMA table_info(desired_state)")
         columns = {row[1] for row in await cursor.fetchall()}
         if "power_mode" not in columns:
             await self._db.execute("ALTER TABLE desired_state ADD COLUMN power_mode TEXT")
-        cursor = await self._db.execute("SELECT serial_number, register_set_values FROM desired_state")
-        for serial_number, raw_values in await cursor.fetchall():
+        cursor = await self._db.execute("SELECT serial_number, register_set_values, power_mode FROM desired_state")
+        for serial_number, raw_values, power_mode in await cursor.fetchall():
             values = json.loads(raw_values or "{}")
-            if values.pop("UserStreamActive", None) is not None:
+            changed = values.pop("UserStreamActive", None) is not None
+            if power_mode != "external":
+                battery_maximums = {
+                    "DefaultMotionStreamTimeLimit": BATTERY_MOTION_STREAM_LIMIT_SECONDS,
+                    "MaxUserStreamTimeLimit": BATTERY_USER_STREAM_LIMIT_SECONDS,
+                    "MaxStreamTimeLimit": BATTERY_STREAM_LIMIT_SECONDS,
+                    "MaxMotionStreamTimeLimit": BATTERY_MOTION_STREAM_LIMIT_SECONDS,
+                }
+                for name, maximum in battery_maximums.items():
+                    if name not in values:
+                        continue
+                    value = values[name]
+                    if type(value) is not int or value < 1 or value > maximum:
+                        values[name] = maximum
+                        changed = True
+            if changed:
                 await self._db.execute(
                     "UPDATE desired_state SET register_set_values=? WHERE serial_number=?",
                     (json.dumps(values), serial_number),

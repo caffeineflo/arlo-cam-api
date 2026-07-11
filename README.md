@@ -192,7 +192,7 @@ The go2rtc API is available to authenticated local clients at `https://arlocam.i
 When a consumer connects to an RTSP stream:
 
 1. go2rtc runs `stream_helper.sh` which pings the camera (triggering AP power-save wake via 802.11 TIM)
-2. Sends the stream activation command to the camera
+2. Acquires a bounded API lease and sends a stream command when the model supports it
 3. Waits up to 80 seconds for the camera's RTSP server to come online
 4. Relays MPEG-TS to go2rtc over the helper's stdout pipe
 
@@ -206,7 +206,7 @@ The production assignments are:
 
 | Camera | Serial | Power mode | Stream policy |
 |--------|--------|------------|---------------|
-| Front Entrance | `4N72777366D7B` | battery | On-demand, 180-second hardware limit |
+| Front Entrance | `4N72777366D7B` | battery | On-demand, 30-second user/motion limit, 180-second general ceiling |
 | Garden Right | `4N72777560C4E` | external | Always-on |
 | House Right Side | `4N72777Y669BB` | external | Always-on |
 | Garden Left | `4N72777V66D82` | external | Always-on |
@@ -224,7 +224,7 @@ curl --fail-with-body -X PUT "$api/device/$serial/power" \
   -d '{"mode":"battery"}'
 curl --fail-with-body -X POST "$api/device/$serial/registerset" \
   -H 'Content-Type: application/json' \
-  -d '{"PIRStartSensitivity":80,"MaxMotionStreamTimeLimit":30}'
+  -d '{"PIRStartSensitivity":80}'
 curl --fail-with-body -X POST "$api/device/$serial/quality" \
   -H 'Content-Type: application/json' \
   -d '{"quality":"low"}'
@@ -261,7 +261,9 @@ Front Entrance must remain on-demand across every consumer:
 - Keep motion clips to 15-20 seconds. The HA recording automation owns clip duration; the API power profile only bounds the underlying stream.
 - Use a stream lease for every recording or live-view session and release it in cleanup. The TTL is the final safety net if a consumer crashes.
 
-The API enforces one shared 180-second session budget for a battery camera, regardless of how many leases or go2rtc producer reconnects occur. After that budget or the final lease ends, a 30-second cooldown rejects new leases with HTTP 429 and `Retry-After`. This prevents a persistent consumer from chaining helper processes into an unlimited battery session.
+The API enforces one shared 180-second session budget for a battery camera, regardless of how many leases or go2rtc producer reconnects occur. The camera profile separately caps user and motion streams at 30 seconds, which covers the 20-second recording while returning the radio to sleep sooner. `MaxStreamTimeLimit` remains 180 because VMC3030 rejects lower values. After the API budget or the final lease ends, a 30-second cooldown rejects new leases with HTTP 429 and `Retry-After`. This prevents a persistent consumer from chaining helper processes into an unlimited battery session.
+
+VMC3030 firmware rejects the `UserStreamActive` register. The API detects that exact response, stops retrying the unsupported command, and relies on the RTSP producer lifetime plus the camera's hardware limits. Use `go2rtc_producer_active` from `/devices/status` as the authoritative live-stream state.
 
 ## Home Assistant Integration
 
@@ -425,7 +427,7 @@ docker compose ps
 curl --fail-with-body https://arlocam.iflorian.com/health
 ```
 
-Recreating go2rtc is required on this first rollout so it loads the newly generated authenticated config and the updated stdout-pipe helper. Verify that unauthenticated go2rtc HTTP requests return 401, authenticated requests succeed through the local-only HTTPS route, Front Entrance is `battery` with `180/180`, and the five USB cameras are `external` with `86400/86400`. Then verify camera registration, stream process counts, and Front Entrance sleep behavior before allowing automation to follow `latest`. To roll back, repeat the same commands with the last known-good SHA tag. Do not build or copy an unverified local working tree onto the dockerhost.
+Recreating go2rtc is required on this first rollout so it loads the newly generated authenticated config and the updated stdout-pipe helper. Verify that unauthenticated go2rtc HTTP requests return 401, authenticated requests succeed through the local-only HTTPS route, Front Entrance is `battery` with user/general limits `30/180`, and the five USB cameras are `external` with `86400/86400`. Then verify camera registration, stream process counts, and Front Entrance sleep behavior before allowing automation to follow `latest`. To roll back, repeat the same commands with the last known-good SHA tag. Do not build or copy an unverified local working tree onto the dockerhost.
 
 ## License
 

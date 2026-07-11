@@ -23,8 +23,8 @@ def create_app() -> FastAPI:
             "For example, MotionRecordingWebHookUrl receives motion events and the payload "
             "uses serial_number as the stable camera identifier; it does not include alert_type.\n\n"
             "Battery cameras should stay on-demand and use per-consumer stream leases. "
-            "Use PUT /power to atomically apply the 180-second battery profile or the "
-            "86400-second external-power profile."
+            "Use PUT /power to atomically apply the battery profile (30-second user/motion "
+            "streams with a 180-second general ceiling) or the 86400-second external-power profile."
         ),
     )
     app.state.start_time = time.time()

@@ -201,6 +201,15 @@ enforce_media_start_timeout() {
   }
 }
 
+hold_after_early_battery_stream_end() {
+  if [ "$POWER_MODE" = "battery" ] && [ "$OUTPUT" = "-" ] && [ -f "$MEDIA_MARKER" ]; then
+    echo "Battery camera $SERIAL ended media before the API budget; waiting for go2rtc to close the producer" >&2
+    cleanup
+    [ "$SHUTDOWN_REQUESTED" -eq 0 ] || exit "$SHUTDOWN_REQUESTED"
+    hold_for_go2rtc
+  fi
+}
+
 watch_for_media_start() {
   helper_pid=$$
   (
@@ -316,4 +325,5 @@ ffmpeg_status=0
 wait "$FFMPEG_PID" || ffmpeg_status=$?
 enforce_media_start_timeout
 enforce_battery_budget
+hold_after_early_battery_stream_end
 shutdown "$ffmpeg_status"

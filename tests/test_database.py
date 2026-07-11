@@ -141,7 +141,21 @@ async def test_connect_migrates_existing_desired_state_table(tmp_path):
         )
         connection.execute(
             "INSERT INTO desired_state VALUES (?, ?, ?, ?)",
-            ("TEST001", '{"UserStreamActive": 0, "PIRStartSensitivity": 80}', None, 1.0),
+            (
+                "TEST001",
+                json.dumps(
+                    {
+                        "UserStreamActive": 0,
+                        "PIRStartSensitivity": 80,
+                        "DefaultMotionStreamTimeLimit": 60,
+                        "MaxUserStreamTimeLimit": 180,
+                        "MaxStreamTimeLimit": 86400,
+                        "MaxMotionStreamTimeLimit": 60,
+                    }
+                ),
+                None,
+                1.0,
+            ),
         )
 
     database = Database(str(path))
@@ -152,7 +166,65 @@ async def test_connect_migrates_existing_desired_state_table(tmp_path):
     assert (
         "power_mode" in state,
         json.loads(state["register_set_values"]),
-    ) == (True, {"PIRStartSensitivity": 80})
+    ) == (
+        True,
+        {
+            "PIRStartSensitivity": 80,
+            "DefaultMotionStreamTimeLimit": 30,
+            "MaxUserStreamTimeLimit": 30,
+            "MaxStreamTimeLimit": 180,
+            "MaxMotionStreamTimeLimit": 30,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_connect_preserves_external_stream_limits(tmp_path):
+    path = tmp_path / "arlo.db"
+    with sqlite3.connect(path) as connection:
+        connection.executescript(
+            """CREATE TABLE devices (
+                serial_number TEXT PRIMARY KEY,
+                ip TEXT,
+                hostname TEXT,
+                friendly_name TEXT,
+                registration TEXT,
+                status TEXT,
+                last_seen REAL NOT NULL DEFAULT 0
+            );
+            CREATE TABLE desired_state (
+                serial_number TEXT PRIMARY KEY,
+                register_set_values TEXT NOT NULL DEFAULT '{}',
+                quality_preset TEXT,
+                power_mode TEXT,
+                updated_at REAL NOT NULL
+            );"""
+        )
+        connection.execute(
+            "INSERT INTO desired_state VALUES (?, ?, ?, ?, ?)",
+            (
+                "TEST001",
+                json.dumps(
+                    {
+                        "MaxUserStreamTimeLimit": 86400,
+                        "MaxStreamTimeLimit": 86400,
+                    }
+                ),
+                None,
+                "external",
+                1.0,
+            ),
+        )
+
+    database = Database(str(path))
+    await database.connect()
+    state = await database.get_desired_state("TEST001")
+    await database.close()
+
+    assert json.loads(state["register_set_values"]) == {
+        "MaxUserStreamTimeLimit": 86400,
+        "MaxStreamTimeLimit": 86400,
+    }
 
 
 @pytest.mark.asyncio

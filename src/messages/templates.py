@@ -14,7 +14,7 @@ INITIAL_REGISTER_SET_CAMERA: dict[str, object] = {
     "DefaultMotionStreamTimeLimit": 10,
     "MaxMissedBeaconTime": 30,
     "MaxStreamTimeLimit": 180,
-    "MaxUserStreamTimeLimit": 180,
+    "MaxUserStreamTimeLimit": 30,
     "MaxMotionStreamTimeLimit": 30,
     "VideoAntiFlickerRate": 60,
     "VideoExposureCompensation": 0,
@@ -130,8 +130,7 @@ def build_snapshot_message(msg_id: int, url: str) -> dict:
 
 
 def build_user_stream_active_message(msg_id: int, active: bool) -> dict:
-    # Protocol inversion: UserStreamActive=0 means streaming, =1 means disabled
-    return {"Type": "registerSet", "ID": msg_id, "SetValues": {"UserStreamActive": 0 if active else 1}}
+    return {"Type": "registerSet", "ID": msg_id, "SetValues": {"UserStreamActive": 1 if active else 0}}
 
 
 def build_epoch_time_message(msg_id: int) -> dict:

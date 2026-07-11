@@ -65,7 +65,7 @@ async def test_overlapping_leases_start_camera_once(acknowledged_camera):
     await camera.acquire_stream_lease("second", 180)
     _cancel_lifecycle_task(camera)
 
-    assert calls == [0]
+    assert calls == [1]
 
 
 @pytest.mark.asyncio
@@ -77,7 +77,7 @@ async def test_new_lease_supersedes_a_pending_stop(acknowledged_camera):
     await camera.acquire_stream_lease("new-viewer", 180)
     _cancel_lifecycle_task(camera)
 
-    assert (calls, camera._pending_stream_active) == ([0], None)
+    assert (calls, camera._pending_stream_active) == ([1], None)
 
 
 @pytest.mark.asyncio
@@ -89,7 +89,7 @@ async def test_releasing_one_lease_does_not_stop_another(acknowledged_camera):
     result = await camera.release_stream_lease(first["lease_id"])
     _cancel_lifecycle_task(camera)
 
-    assert (result["lease_count"], calls) == (1, [0])
+    assert (result["lease_count"], calls) == (1, [1])
 
 
 @pytest.mark.asyncio
@@ -99,7 +99,7 @@ async def test_releasing_last_battery_lease_stops_camera(acknowledged_camera):
 
     result = await camera.release_stream_lease(lease["lease_id"])
 
-    assert (result["lease_count"], calls) == (0, [0, 1])
+    assert (result["lease_count"], calls) == (0, [1, 0])
 
 
 @pytest.mark.asyncio
@@ -129,13 +129,13 @@ async def test_switching_external_lease_to_battery_clamps_deadline(
     monkeypatch.setattr(camera_module.time, "time", lambda: now[0])
     camera.configure_stream_policy(
         "external",
-        {"MaxUserStreamTimeLimit": 180, "MaxStreamTimeLimit": 180},
+        {"MaxUserStreamTimeLimit": 86400, "MaxStreamTimeLimit": 86400},
     )
     lease = await camera.acquire_stream_lease("viewer", 3600)
 
     await camera.apply_stream_policy(
         "battery",
-        {"MaxUserStreamTimeLimit": 180, "MaxStreamTimeLimit": 180},
+        {"MaxUserStreamTimeLimit": 30, "MaxStreamTimeLimit": 180},
     )
     status = camera.cached_stream_status()
     _cancel_lifecycle_task(camera)
@@ -168,16 +168,16 @@ async def test_reapplying_battery_profile_stops_orphaned_stream(acknowledged_cam
     camera, calls = acknowledged_camera
     camera.configure_stream_policy(
         "battery",
-        {"MaxUserStreamTimeLimit": 180, "MaxStreamTimeLimit": 180},
+        {"MaxUserStreamTimeLimit": 30, "MaxStreamTimeLimit": 180},
     )
     camera._stream_active = True
 
     await camera.apply_stream_policy(
         "battery",
-        {"MaxUserStreamTimeLimit": 180, "MaxStreamTimeLimit": 180},
+        {"MaxUserStreamTimeLimit": 30, "MaxStreamTimeLimit": 180},
     )
 
-    assert (camera.is_streaming, calls) == (False, [1])
+    assert (camera.is_streaming, calls) == (False, [0])
 
 
 @pytest.mark.asyncio
@@ -186,7 +186,7 @@ async def test_updating_idle_battery_profile_does_not_start_cooldown(acknowledge
 
     await camera.apply_stream_policy(
         "battery",
-        {"MaxUserStreamTimeLimit": 180, "MaxStreamTimeLimit": 180},
+        {"MaxUserStreamTimeLimit": 30, "MaxStreamTimeLimit": 180},
     )
 
     assert camera.cached_stream_status()["cooldown_until"] is None
@@ -322,12 +322,49 @@ async def test_nack_does_not_mark_stream_stopped(sample_camera, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_unsupported_stream_command_is_not_retried(sample_camera, monkeypatch):
+    calls = []
+
+    async def send_message(message):
+        calls.append(message)
+        return {
+            "ID": message["ID"],
+            "Response": "Ack with Errors",
+            "Errors": ["Error Handling Register UserStreamActive"],
+        }
+
+    monkeypatch.setattr(sample_camera, "send_message", send_message)
+
+    start_result = await sample_camera.set_user_stream_active(True)
+    stop_result = await sample_camera.set_user_stream_active(False)
+    status = sample_camera.cached_stream_status()
+
+    assert (
+        start_result,
+        stop_result,
+        len(calls),
+        status["stream_command_supported"],
+        status["pending_stream_active"],
+        status["last_stream_result"]["error"],
+        sample_camera._stop_reconciliation_task,
+    ) == (
+        False,
+        False,
+        1,
+        False,
+        None,
+        "camera does not support UserStreamActive",
+        None,
+    )
+
+
+@pytest.mark.asyncio
 async def test_new_lease_wins_over_in_flight_pending_stop(sample_camera, monkeypatch):
     stop_started = asyncio.Event()
     finish_stop = asyncio.Event()
 
     async def send_message(message):
-        active = message["SetValues"]["UserStreamActive"] == 0
+        active = message["SetValues"]["UserStreamActive"] == 1
         if not active:
             stop_started.set()
             await finish_stop.wait()
