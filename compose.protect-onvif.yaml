@@ -14,7 +14,7 @@ services:
       - /dockerfs/arlocam/config.yaml:/app/config.yaml:ro
       - /dockerfs/arlocam/v2-data:/data
     env_file:
-      - /dockerfs/arlocam/go2rtc.env
+      - ../../arlocam/go2rtc.env
     environment:
       - GO2RTC_API_URL=http://arlo-go2rtc:1984
       - GO2RTC_REQUIRE_API_AUTH=true
