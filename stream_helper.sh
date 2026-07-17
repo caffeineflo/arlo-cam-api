@@ -221,6 +221,46 @@ watch_for_media_start() {
   MEDIA_WATCHDOG_PID=$!
 }
 
+start_media_pipeline() {
+  if [ "$OUTPUT" = "-" ]; then
+    MEDIA_FIFO="/tmp/arlo-stream-$SERIAL-$$.fifo"
+    MEDIA_PREFIX="/tmp/arlo-stream-$SERIAL-$$.prefix"
+    MEDIA_MARKER="/tmp/arlo-stream-$SERIAL-$$.media"
+    rm -f "$MEDIA_FIFO" "$MEDIA_PREFIX" "$MEDIA_MARKER"
+    mkfifo "$MEDIA_FIFO"
+    setsid "$0" --relay-media "$MEDIA_FIFO" "$MEDIA_PREFIX" "$MEDIA_MARKER" &
+    RELAY_PID=$!
+    setsid ffmpeg -hide_banner -loglevel warning -nostdin -y \
+      -rtsp_transport udp -i "rtsp://$CAMERA_IP:554/live" \
+      -an -c:v copy -f mpegts "$MEDIA_FIFO" &
+    FFMPEG_PID=$!
+    watch_for_media_start
+  else
+    setsid ffmpeg -hide_banner -loglevel warning \
+      -rtsp_transport udp -i "rtsp://$CAMERA_IP:554/live" \
+      -c copy -f rtsp "$OUTPUT" &
+    FFMPEG_PID=$!
+  fi
+}
+
+reset_external_media_pipeline() {
+  if [ -n "$MEDIA_WATCHDOG_PID" ]; then
+    kill "$MEDIA_WATCHDOG_PID" 2>/dev/null || true
+    wait "$MEDIA_WATCHDOG_PID" 2>/dev/null || true
+    MEDIA_WATCHDOG_PID=""
+  fi
+  if [ -n "$RELAY_PID" ]; then
+    wait "$RELAY_PID" 2>/dev/null || true
+    RELAY_PID=""
+  fi
+  rm -f "$MEDIA_FIFO" "$MEDIA_PREFIX" "$MEDIA_MARKER"
+  MEDIA_FIFO=""
+  MEDIA_PREFIX=""
+  MEDIA_MARKER=""
+  FFMPEG_PID=""
+  MEDIA_START_FAILED=0
+}
+
 trap cleanup EXIT
 trap 'SHUTDOWN_REQUESTED=130; if [ "$CLEANUP_STARTED" -eq 0 ]; then shutdown 130; fi' INT
 trap 'SHUTDOWN_REQUESTED=143; if [ "$CLEANUP_STARTED" -eq 0 ]; then shutdown 143; fi' TERM
@@ -301,29 +341,21 @@ enforce_battery_budget
 # A new session gives ffmpeg its own process group so cleanup can stop ffmpeg
 # and all descendants without signaling this helper. BusyBox sh cannot enable
 # job control without a TTY, so set -m is not reliable inside go2rtc.
-if [ "$OUTPUT" = "-" ]; then
-  MEDIA_FIFO="/tmp/arlo-stream-$SERIAL-$$.fifo"
-  MEDIA_PREFIX="/tmp/arlo-stream-$SERIAL-$$.prefix"
-  MEDIA_MARKER="/tmp/arlo-stream-$SERIAL-$$.media"
-  rm -f "$MEDIA_FIFO" "$MEDIA_PREFIX" "$MEDIA_MARKER"
-  mkfifo "$MEDIA_FIFO"
-  setsid "$0" --relay-media "$MEDIA_FIFO" "$MEDIA_PREFIX" "$MEDIA_MARKER" &
-  RELAY_PID=$!
-  setsid ffmpeg -hide_banner -loglevel warning -nostdin -y \
-    -rtsp_transport udp -i "rtsp://$CAMERA_IP:554/live" \
-    -an -c:v copy -f mpegts "$MEDIA_FIFO" &
-  FFMPEG_PID=$!
-  watch_for_media_start
-else
-  setsid ffmpeg -hide_banner -loglevel warning \
-    -rtsp_transport udp -i "rtsp://$CAMERA_IP:554/live" \
-    -c copy -f rtsp "$OUTPUT" &
-  FFMPEG_PID=$!
-fi
+start_media_pipeline
 
-ffmpeg_status=0
-wait "$FFMPEG_PID" || ffmpeg_status=$?
-enforce_media_start_timeout
-enforce_battery_budget
-hold_after_early_battery_stream_end
-shutdown "$ffmpeg_status"
+while :; do
+  ffmpeg_status=0
+  wait "$FFMPEG_PID" || ffmpeg_status=$?
+  enforce_media_start_timeout
+  enforce_battery_budget
+  hold_after_early_battery_stream_end
+
+  if [ "$POWER_MODE" != "external" ] || [ "$OUTPUT" != "-" ]; then
+    shutdown "$ffmpeg_status"
+  fi
+
+  echo "External camera $SERIAL ended media; reconnecting without closing the go2rtc producer" >&2
+  reset_external_media_pipeline
+  sleep 1
+  start_media_pipeline
+done

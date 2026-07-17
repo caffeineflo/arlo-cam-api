@@ -35,6 +35,15 @@ def _wait_for_file(path, timeout=6):
     pytest.fail(f"Timed out waiting for {path.name}")
 
 
+def _wait_for_line_count(path, count, timeout=6):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists() and len(path.read_text().splitlines()) >= count:
+            return
+        time.sleep(0.05)
+    pytest.fail(f"Timed out waiting for {count} lines in {path.name}")
+
+
 def _helper_environment(
     tmp_path,
     power_mode,
@@ -375,6 +384,33 @@ def test_external_helper_ignores_lease_ttl_and_streams_until_closed(tmp_path):
         "released_while_running": False,
         "released_on_close": True,
         "ffmpeg_alive_on_close": False,
+    }, stderr
+
+
+def test_external_helper_reconnects_camera_without_closing_consumer(tmp_path):
+    environment, state_dir = _helper_environment(
+        tmp_path,
+        "external",
+        ffmpeg_lifetime=1,
+    )
+    process = _start_stream_helper(environment)
+
+    try:
+        _wait_for_line_count(state_dir / "ffmpeg_pids", 2)
+        result = {
+            "helper_running": process.poll() is None,
+            "ffmpeg_start_count": len((state_dir / "ffmpeg_pids").read_text().splitlines()),
+            "acquire_attempts": (state_dir / "acquire_attempts").read_text().strip(),
+            "released_while_running": (state_dir / "release_url").exists(),
+        }
+    finally:
+        _, stderr = _stop_stream_helper(process)
+
+    assert result == {
+        "helper_running": True,
+        "ffmpeg_start_count": 2,
+        "acquire_attempts": "1",
+        "released_while_running": False,
     }, stderr
 
 
