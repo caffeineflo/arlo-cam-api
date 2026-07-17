@@ -250,6 +250,7 @@ reset_external_media_pipeline() {
     MEDIA_WATCHDOG_PID=""
   fi
   if [ -n "$RELAY_PID" ]; then
+    kill -TERM "-$RELAY_PID" 2>/dev/null || true
     wait "$RELAY_PID" 2>/dev/null || true
     RELAY_PID=""
   fi

@@ -50,6 +50,7 @@ def _helper_environment(
     release_failures=0,
     emit_media=True,
     ffmpeg_lifetime=300,
+    ffmpeg_exit_before_open_attempt=0,
 ):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
@@ -123,6 +124,10 @@ os.execvp(sys.argv[1], sys.argv[1:])
         bin_dir / "ffmpeg",
         """#!/bin/sh
 printf '%s\n' "$$" >>"$TEST_STATE_DIR/ffmpeg_pids"
+attempt="$(wc -l <"$TEST_STATE_DIR/ffmpeg_pids" | tr -d '[:space:]')"
+if [ "$attempt" -eq "$TEST_FFMPEG_EXIT_BEFORE_OPEN_ATTEMPT" ]; then
+  exit 1
+fi
 for output do :; done
 exec 3>"$output"
 if [ "$TEST_EMIT_MEDIA" = 1 ]; then
@@ -148,6 +153,9 @@ wait
             "TEST_RELEASE_FAILURES": str(release_failures),
             "TEST_EMIT_MEDIA": "1" if emit_media else "0",
             "TEST_FFMPEG_LIFETIME": str(ffmpeg_lifetime),
+            "TEST_FFMPEG_EXIT_BEFORE_OPEN_ATTEMPT": str(
+                ffmpeg_exit_before_open_attempt
+            ),
             "ARLO_BATTERY_STREAM_MAX_SECONDS": "5",
             "ARLO_FFMPEG_STOP_GRACE_SECONDS": "0",
             "ARLO_MEDIA_START_TIMEOUT_SECONDS": "2",
@@ -409,6 +417,36 @@ def test_external_helper_reconnects_camera_without_closing_consumer(tmp_path):
     assert result == {
         "helper_running": True,
         "ffmpeg_start_count": 2,
+        "acquire_attempts": "1",
+        "released_while_running": False,
+    }, stderr
+
+
+def test_external_helper_recovers_if_reconnect_exits_before_opening_fifo(tmp_path):
+    environment, state_dir = _helper_environment(
+        tmp_path,
+        "external",
+        ffmpeg_lifetime=1,
+        ffmpeg_exit_before_open_attempt=2,
+    )
+    process = _start_stream_helper(environment)
+
+    try:
+        _wait_for_line_count(state_dir / "ffmpeg_pids", 3)
+        result = {
+            "helper_running": process.poll() is None,
+            "ffmpeg_start_count": len(
+                (state_dir / "ffmpeg_pids").read_text().splitlines()
+            ),
+            "acquire_attempts": (state_dir / "acquire_attempts").read_text().strip(),
+            "released_while_running": (state_dir / "release_url").exists(),
+        }
+    finally:
+        _, stderr = _stop_stream_helper(process)
+
+    assert result == {
+        "helper_running": True,
+        "ffmpeg_start_count": 3,
         "acquire_attempts": "1",
         "released_while_running": False,
     }, stderr
